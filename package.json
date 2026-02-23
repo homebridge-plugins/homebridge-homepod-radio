@@ -48,7 +48,7 @@
   "devDependencies": {
     "@eslint/js": "^9.21.0",
     "@types/node": "^25.0.2",
-    "eslint": "^9.21.0",
+    "eslint": "^10.0.1",
     "homebridge": "^2.0.0-beta.55",
     "nodemon": "^3.1.9",
     "rimraf": "^6.0.1",
