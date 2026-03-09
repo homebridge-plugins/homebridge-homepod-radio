@@ -70,9 +70,9 @@ jobs:
             ${{ inputs.description || ''}}
           image: ${{ inputs.image || ''}}
           color: ${{ inputs.color || '0xFFE87F'}}
-          url: ${{ inputs.url || 'https://github.com/petro-kushchak/homebridge-homepod-radio/'}}
+          url: ${{ inputs.url || 'https://github.com/homebridge-plugins/homebridge-homepod-radio/'}}
           username: ${{ inputs.username || 'HomePod Mini Radio'}}
-          avatar_url: ${{ inputs.avatar_url || 'https://raw.githubusercontent.com/petro-kushchak/homebridge-homepod-radio/latest/homepod-radio.png'}}
+          avatar_url: ${{ inputs.avatar_url || 'https://raw.githubusercontent.com/homebridge-plugins/homebridge-homepod-radio/latest/homepod-radio.png'}}
           nofail: ${{ inputs.nofail || true}}
           noprefix: ${{ inputs.noprefix || false}}
           nodetail: ${{ inputs.nodetail || false}}

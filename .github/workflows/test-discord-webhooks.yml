@@ -10,13 +10,13 @@ jobs:
   post-test-release-to-discord:
     name: Discord Webhooks
 
-    uses: petro-kushchak/homebridge-homepod-radio/.github/workflows/discord-webhooks.yml@master
+    uses: homebridge-plugins/homebridge-homepod-radio/.github/workflows/discord-webhooks.yml@master
 
     with:
       title: Test
       description: |
         Version `Test`
-      url: 'https://github.com/petro-kushchak/homebridge-homepod-radio/releases/tag/v${{ needs.publish.outputs.NPM_VERSION }}'
+      url: 'https://github.com/homebridge-plugins/homebridge-homepod-radio/releases/tag/v${{ needs.publish.outputs.NPM_VERSION }}'
     # TODO:
     # secrets:
     #   DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
