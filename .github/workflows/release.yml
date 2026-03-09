@@ -38,6 +38,8 @@ jobs:
   publish:
     if: ${{ github.repository == 'homebridge-plugins/homebridge-homepod-radio' }}
     runs-on: ubuntu-latest
+    outputs:
+      npm_version: ${{ steps.get-published-version.outputs.version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -92,3 +94,27 @@ jobs:
       - name: Publish to npm with OIDC
         if: steps.release-type.outputs.type != 'none'
         run: npm publish --tag ${{ steps.release-type.outputs.tag }} --provenance --access public
+
+      - name: Get published version
+        id: get-published-version
+        if: steps.release-type.outputs.type != 'none'
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Published version: $VERSION"
+
+  github-releases-to-discord:
+    name: Discord Webhooks
+    needs: [publish]
+    uses: homebridge/.github/.github/workflows/discord-webhooks.yml@latest
+    if: |
+      always() &&
+      needs.publish.result == 'success' &&
+      github.event_name == 'release'
+    with:
+      title: "HomePod Radio Release"
+      description: |
+        Version `v${{ needs.publish.outputs.npm_version }}`
+      url: "https://github.com/homebridge-plugins/homebridge-homepod-radio/releases/tag/v${{ needs.publish.outputs.npm_version }}"
+    secrets:
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
