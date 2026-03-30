@@ -23,12 +23,12 @@ export class HomepodRadioPlatform implements DynamicPlatformPlugin {
     private readonly playbackControllers: Map<string, PlaybackController> = new Map();
     private readonly platformActions: Map<string, HomepodRadioPlatformWebActions> = new Map();
 
-    private readonly httpService: HttpService;
+    private readonly httpService!: HttpService;
 
     public readonly Service: typeof Service;
     public readonly Characteristic: typeof Characteristic;
 
-    public readonly platformConfig: HomepodRadioPlatformConfig;
+    public readonly platformConfig!: HomepodRadioPlatformConfig;
 
     constructor(
         public logger: Logging,
@@ -45,8 +45,6 @@ export class HomepodRadioPlatform implements DynamicPlatformPlugin {
         } catch (error) {
             this.logger.error(`Configuration error: ${error}`);
             this.logger.error('Please check your Homebridge config.json. The plugin will not start.');
-            this.platformConfig = undefined as unknown as HomepodRadioPlatformConfig;
-            this.httpService = undefined as unknown as HttpService;
             return;
         }
 
