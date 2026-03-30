@@ -40,7 +40,15 @@ export class HomepodRadioPlatform implements DynamicPlatformPlugin {
         this.Service = api.hap.Service;
         this.Characteristic = api.hap.Characteristic;
 
-        this.platformConfig = new HomepodRadioPlatformConfig(this.config);
+        try {
+            this.platformConfig = new HomepodRadioPlatformConfig(this.config);
+        } catch (error) {
+            this.logger.error(`Configuration error: ${error}`);
+            this.logger.error('Please check your Homebridge config.json. The plugin will not start.');
+            this.platformConfig = undefined as unknown as HomepodRadioPlatformConfig;
+            this.httpService = undefined as unknown as HttpService;
+            return;
+        }
 
         this.platformConfig.homepods.forEach((homepod) => {
             const controller = new PlaybackController();
