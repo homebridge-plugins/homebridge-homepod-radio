@@ -30,10 +30,12 @@ export class HomepodRadioPlatformAccessory implements PlaybackStreamer {
         private readonly platform: HomepodRadioPlatform,
         private readonly accessory: PlatformAccessory,
         private readonly radio: RadioConfig,
+        private readonly homepodId: string,
+        private readonly serialNumber: string,
         private readonly playbackController: PlaybackController,
     ) {
         this.device = new AirPlayDevice(
-            this.platform.platformConfig.homepodId,
+            this.homepodId,
             platform.logger,
             platform.platformConfig.verboseMode,
             this.streamerName(),
@@ -51,7 +53,7 @@ export class HomepodRadioPlatformAccessory implements PlaybackStreamer {
             .getService(this.platform.Service.AccessoryInformation)!
             .setCharacteristic(this.platform.Characteristic.Manufacturer, PLUGIN_MANUFACTURER)
             .setCharacteristic(this.platform.Characteristic.Model, this.radio.model)
-            .setCharacteristic(this.platform.Characteristic.SerialNumber, this.platform.platformConfig.serialNumber)
+            .setCharacteristic(this.platform.Characteristic.SerialNumber, this.serialNumber)
             .setCharacteristic(this.platform.Characteristic.Name, this.radio.name);
 
         this.service =

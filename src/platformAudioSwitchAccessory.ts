@@ -20,10 +20,12 @@ export class HomepodAudioSwitchAccessory implements AccessoryPlugin, PlaybackStr
         private readonly platform: HomepodRadioPlatform,
         private readonly accessory: PlatformAccessory,
         private readonly audioConfig: AudioConfig,
+        private readonly homepodId: string,
+        private readonly serialNumber: string,
         private readonly playbackController: PlaybackController,
     ) {
         this.device = new AirPlayDevice(
-            this.platform.platformConfig.homepodId,
+            this.homepodId,
             platform.logger,
             platform.platformConfig.verboseMode,
             this.streamerName(),
@@ -61,7 +63,7 @@ export class HomepodAudioSwitchAccessory implements AccessoryPlugin, PlaybackStr
         this.informationService
             .setCharacteristic(this.platform.Characteristic.Manufacturer, PLUGIN_MANUFACTURER)
             .setCharacteristic(this.platform.Characteristic.Model, PLUGIN_MODEL)
-            .setCharacteristic(this.platform.Characteristic.SerialNumber, this.platform.platformConfig.serialNumber)
+            .setCharacteristic(this.platform.Characteristic.SerialNumber, this.serialNumber)
             .setCharacteristic(this.platform.Characteristic.Name, this.audioConfig.name);
 
         // This will do its best to keep the actual outputs status up to date with Homekit.
@@ -107,7 +109,7 @@ export class HomepodAudioSwitchAccessory implements AccessoryPlugin, PlaybackStr
         const mediaPath = this.platform.platformConfig.mediaPath || os.homedir();
         const filePath = path.join(mediaPath, this.audioConfig.fileName);
         await this.device.playFile(filePath, this.audioConfig.volume);
-        await this.playbackController.updateVolume(this.platform.platformConfig.homepodId, this.audioConfig.volume);
+        await this.playbackController.updateVolume(this.homepodId, this.audioConfig.volume);
     }
 
     async stopPlaying(): Promise<void> {
