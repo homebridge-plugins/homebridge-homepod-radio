@@ -45,9 +45,9 @@ For the HomePod you can specify device MAC address or device name.
 > [!IMPORTANT]
 > Each radio speaker must be added to Home app separately with Homebridge pin pairing
 
-Config example:
+Config example with a single HomePod (legacy format):
 
-```
+```json
 {
     "platform": "HomepodRadioPlatform",
     "serialNumber": "20020105:00",
@@ -73,6 +73,65 @@ Config example:
     ]
 }
 ```
+
+### Multiple HomePod support
+
+You can configure multiple HomePods (or Apple TVs) in a single platform instance using the `homepods` array. Each HomePod gets its own independent set of radio and audio file accessories. Playback is independent per HomePod — different HomePods can play different streams at the same time.
+
+When multiple HomePods are configured, accessory names include the HomePod name for identification, e.g. "BBC - Radio 1 (Living Room)".
+
+Config example with multiple HomePods:
+
+```json
+{
+    "platform": "HomepodRadioPlatform",
+    "homepods": [
+        {
+            "id": "F4:22:F0:10:33:71",
+            "name": "Living Room",
+            "enableVolumeControl": true,
+            "volume": 25
+        },
+        {
+            "id": "Kitchen HomePod",
+            "name": "Kitchen",
+            "enableVolumeControl": true,
+            "volume": 30
+        }
+    ],
+    "httpPort": 7654,
+    "mediaPath": "/media/homepod",
+    "radios": [
+        {
+            "name": "BBC - Radio 1",
+            "radioUrl": "http://stream.live.vc.bbcmedia.co.uk/bbc_radio_one",
+            "artworkUrl": "https://ichef.bbci.co.uk/images/ic/1920x1080/p05d68tx.jpg",
+            "autoResume": true,
+            "onSwitch": true
+        }
+    ],
+    "audioFiles": [
+        {
+            "name": "Alert",
+            "fileName": "police.mp3",
+            "volume": 85
+        }
+    ]
+}
+```
+
+Each entry in `homepods` supports these properties:
+
+| Property | Required | Description |
+|---|---|---|
+| `id` | Yes | HomePod identifier — MAC address (e.g. `F4:22:F0:10:33:71`), identifier without separators (e.g. `F422F0103371`), or device name (e.g. `Kitchen HomePod`). Found via `atvremote scan`. |
+| `name` | Yes | Friendly name used in accessory names and HTTP webhook URLs. |
+| `serialNumber` | No | Serial number for the accessories. Defaults to `HPD-<id>`. |
+| `enableVolumeControl` | No | Enable volume control accessory for this HomePod. Default: `false`. |
+| `volume` | No | Default volume level (0–100). Default: `25`. |
+
+> [!NOTE]
+> When upgrading from a single-HomePod config (`homepodId`) to the new `homepods` array, your existing accessories will get new UUIDs and need to be re-paired in the Home app.
 
 ### Radio metadata support
 
@@ -174,6 +233,17 @@ Example:
 Then you can trigger playback of `hello.mp3` even from browser by navigating to: `http://homebridge.local:4567/play/hello.mp3`
 
 You can specify the playback volume level, by adding it to the end of the playback URL: `http://homebridge.local:4567/play/hello.mp3/75`
+
+#### Webhooks with multiple HomePods
+
+When using the `homepods` array, you can target a specific HomePod by including its name in the URL:
+
+```
+http://homebridge.local:4567/play/Living Room/hello.mp3
+http://homebridge.local:4567/play/Kitchen/hello.mp3/75
+```
+
+If no HomePod name is specified, the first configured HomePod is used (backward compatible).
 
 ### Audio file playback automation example
 
