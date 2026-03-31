@@ -106,7 +106,7 @@ export class HomepodRadioPlatform implements DynamicPlatformPlugin {
     }
 
     private displayName(baseName: string, homepod: HomepodConfig): string {
-        return this.platformConfig.isMultiHomepod ? `${baseName} (${homepod.name})` : baseName;
+        return this.platformConfig.isMultiHomepod ? `${baseName} ${homepod.name}` : baseName;
     }
 
     private uuidSeed(base: string, homepod: HomepodConfig): string {
