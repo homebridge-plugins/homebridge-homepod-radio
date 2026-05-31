@@ -161,6 +161,34 @@ For Whom The Bell Tolls.mp3
 > [!NOTE]
 > Comments starting with `#` and empty lines are ignored.
 
+### Low-latency audio buttons (`keepConnectionWarm`)
+
+By default, every audio-file button press starts a fresh `python3` helper that
+imports pyatv and re-establishes the AirPlay connection before any sound plays.
+For short sound effects (door chimes, alerts, ringtones) that startup cost
+dominates the perceived delay.
+
+Enabling `keepConnectionWarm` starts a single, long-lived pyatv worker when the
+plugin launches (only if at least one `audioFiles` entry is configured). The
+worker imports pyatv once and holds the connection open, so subsequent button
+presses skip the cold start and play noticeably sooner.
+
+```
+    "keepConnectionWarm": true
+```
+
+Notes:
+
+- Default is `false`, preserving the original spawn-per-press behavior.
+- If the warm worker is unavailable for any reason, playback automatically falls
+  back to the standard spawn path, so a worker failure never silently breaks a
+  button.
+- The warm path applies to the HomeKit **audio-file switch accessories**. The
+  webhook (`/play/...`) endpoint is unaffected and continues to use the standard
+  path.
+- The first press after restart may still be slightly slower while the worker
+  finishes its initial warm-up.
+
 ### Webhook for audio file playback
 
 You should use the Homebridge server name (default for Homebridge server is homebridge.local) or IP to invoke playback via URL

@@ -67,6 +67,13 @@
                 "default": false,
                 "required": false
             },
+            "keepConnectionWarm": {
+                "title": "Keep AirPlay Connection Warm",
+                "description": "Hold a single pyatv connection to the HomePod open and reuse it for audio buttons, eliminating the multi-second cold-start delay on each press. Recommended when you use audio buttons.",
+                "type": "boolean",
+                "default": false,
+                "required": false
+            },
             "audioFiles": {
                 "title": "Audio Buttons",
                 "type": "array",

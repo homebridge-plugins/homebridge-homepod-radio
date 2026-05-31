@@ -32,6 +32,7 @@ export class HomepodRadioPlatformConfig {
 
     public readonly enableVolumeControl: boolean;
     public readonly volume: number;
+    public readonly keepConnectionWarm: boolean;
 
     constructor(private config: PlatformConfig) {
         this.name = config.name || 'HomePod Mini Radio';
@@ -50,6 +51,7 @@ export class HomepodRadioPlatformConfig {
 
         this.enableVolumeControl = (this.config.enableVolumeControl ??= false);
         this.volume = this.config.volume || 25;
+        this.keepConnectionWarm = (this.config.keepConnectionWarm ??= false);
 
         this.loadRadioConfigs();
         this.loadAudioConfigs();
