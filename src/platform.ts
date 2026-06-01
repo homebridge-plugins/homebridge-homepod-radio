@@ -57,9 +57,11 @@ export class HomepodRadioPlatform implements DynamicPlatformPlugin {
             this.logger.info('Finished initializing platform');
 
             // Start one shared warm worker (held pyatv connection) before adding
-            // audio buttons, so the first press can already use it.
+            // audio buttons, so the first press can already use it. On by
+            // default, but only when at least one audio button is configured so
+            // installs without audio buttons consume no extra resources.
             if (this.platformConfig.keepConnectionWarm && this.platformConfig.audioFiles.length > 0) {
-                this.logger.info('Platform: keepConnectionWarm enabled - starting warm worker');
+                this.logger.info('Platform: keeping AirPlay connection warm for audio buttons');
                 this.warmPlayer = new WarmPlayer(
                     this.platformConfig.homepodId,
                     this.logger,
