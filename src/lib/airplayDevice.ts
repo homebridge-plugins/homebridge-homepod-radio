@@ -1,6 +1,7 @@
 import { Logger } from 'homebridge';
 
 import { delay } from './promises.js';
+import { WarmPlayer } from './warmPlayer.js';
 
 import * as child from 'child_process';
 import * as path from 'path';
@@ -24,6 +25,7 @@ export class AirPlayDevice {
         'https://www.apple.com/v/apple-music/q/images/shared/og__ckjrh2mu8b2a_image.png';
 
     private streaming: child.ChildProcess | undefined;
+    private warmPlaying = false;
     private lastSeen!: number;
     private heartbeat: ReturnType<typeof setInterval> | undefined;
     private streamingRetries = 0;
@@ -39,6 +41,7 @@ export class AirPlayDevice {
         private readonly streamerName: string,
         private readonly streamMetadataUrl?: string,
         private readonly streamArtworkUrl?: string,
+        private readonly warmPlayer?: WarmPlayer,
     ) {
         this.debug = this.verboseMode ? this.logger.info.bind(this.logger) : this.logger.debug.bind(this.logger);
         this.pluginPath = path.resolve(path.dirname(__filename), '..', '..');
@@ -63,6 +66,25 @@ export class AirPlayDevice {
     }
 
     public async playFile(filePath: string, volume: number): Promise<boolean> {
+        // Prefer the shared warm worker (held pyatv connection) when available,
+        // falling back to the per-press spawn path below if it is down or fails.
+        if (this.warmPlayer && this.warmPlayer.isReady()) {
+            this.warmPlaying = true;
+            this.logger.info(`[${this.streamerName}] Started file streaming ${filePath} (warm)`);
+            try {
+                const ok = await this.warmPlayer.playFile(filePath, volume, this.streamerName);
+                this.warmPlaying = false;
+                if (ok) {
+                    this.debug(`[${this.streamerName}] Finished file streaming ${filePath} (warm)`);
+                    return true;
+                }
+                this.logger.warn(`[${this.streamerName}] Warm play failed, falling back to spawn`);
+            } catch (err) {
+                this.warmPlaying = false;
+                this.logger.warn(`[${this.streamerName}] Warm play error, falling back to spawn: ${err}`);
+            }
+        }
+
         // create pipe for the command:
         const scriptPath = path.resolve(path.dirname(__filename), '..', 'stream.py');
 
@@ -239,6 +261,7 @@ export class AirPlayDevice {
 
     private async endStreaming(streamExited: boolean = false): Promise<boolean> {
         try {
+            this.warmPlaying = false;
             if (this.streaming === undefined) {
                 this.debug(`[${this.streamerName}] End streaming: streaming: ${this.streaming}`);
                 return Promise.resolve(true);
@@ -272,6 +295,6 @@ export class AirPlayDevice {
     }
 
     public isPlaying(): boolean {
-        return !!this.streaming;
+        return !!this.streaming || this.warmPlaying;
     }
 }
