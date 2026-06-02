@@ -29,9 +29,16 @@ import os
 import re
 import sys
 
-import pyatv
-from pyatv.const import Protocol
-from pyatv.interface import MediaMetadata
+try:
+    import pyatv
+    from pyatv.const import Protocol
+    from pyatv.interface import MediaMetadata
+    _PYATV_IMPORT_ERROR = None
+except ImportError as ex:
+    pyatv = None
+    Protocol = None
+    MediaMetadata = None
+    _PYATV_IMPORT_ERROR = ex
 
 
 _LOGGER = logging.getLogger("warm-worker")
@@ -197,6 +204,11 @@ def main() -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
         format="%(asctime)s %(levelname)s [%(name)s]: %(message)s",
     )
+
+    if _PYATV_IMPORT_ERROR is not None:
+        _LOGGER.error("Required dependency 'pyatv' was not found. Install it with: pip3 install pyatv")
+        _LOGGER.error("Import error: %s", _PYATV_IMPORT_ERROR)
+        sys.exit(1)
 
     try:
         asyncio.run(main_async(args.id))
