@@ -28,9 +28,12 @@ export class WarmPlayer {
     private rl: readline.Interface | undefined;
     private ready = false;
     private stopped = false;
+    private restartDisabled = false;
 
     private restartDelay = 1000;
     private readonly MAX_RESTART_DELAY = 30000;
+    private restartAttempts = 0;
+    private readonly MAX_RESTART_ATTEMPTS = 6;
     private readonly PLAY_TIMEOUT_MS = 60000;
 
     private nextId = 1;
@@ -51,7 +54,7 @@ export class WarmPlayer {
     }
 
     public start(): void {
-        if (this.stopped || this.worker) {
+        if (this.stopped || this.restartDisabled || this.worker) {
             return;
         }
 
@@ -59,7 +62,7 @@ export class WarmPlayer {
         if (this.verboseMode) {
             args.push('--verbose');
         }
-        this.logger.info(`[warm] starting worker: python3 ${args.join(' ')}`);
+        this.logger.info(`Starting warm worker: python3 ${args.join(' ')}`);
 
         this.worker = child.spawn('python3', args, { env: { ...process.env } });
 
@@ -67,15 +70,15 @@ export class WarmPlayer {
         this.rl.on('line', (line) => this.handleLine(line));
 
         this.worker.stderr!.on('data', (data) => {
-            this.debug(`[warm worker] ${data.toString().trim()}`);
+            this.logWorkerStderr(data.toString());
         });
 
         this.worker.on('error', (err) => {
-            this.logger.error(`[warm] worker spawn error: ${err}`);
+            this.logger.error(`Warm worker spawn error: ${err}`);
         });
 
         this.worker.on('exit', (code, signal) => {
-            this.logger.warn(`[warm] worker exited code=${code} signal=${signal}`);
+            this.logger.warn(`Warm worker exited code=${code} signal=${signal}`);
             this.ready = false;
             this.rl?.close();
             this.rl = undefined;
@@ -83,6 +86,21 @@ export class WarmPlayer {
             this.failAllPending();
             this.scheduleRestart();
         });
+    }
+
+    private logWorkerStderr(output: string): void {
+        const lines = output
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0);
+
+        for (const line of lines) {
+            if (/traceback|error|exception|module not found/i.test(line)) {
+                this.logger.error(`Warm worker: ${line}`);
+            } else {
+                this.logger.warn(`Warm worker: ${line}`);
+            }
+        }
     }
 
     private handleLine(line: string): void {
@@ -95,14 +113,15 @@ export class WarmPlayer {
         try {
             msg = JSON.parse(trimmed);
         } catch {
-            this.debug(`[warm] non-JSON from worker: ${trimmed}`);
+            this.debug(`Warm worker non-JSON output: ${trimmed}`);
             return;
         }
 
         if (msg.event === 'ready') {
             this.ready = true;
             this.restartDelay = 1000; // healthy start resets backoff
-            this.logger.info('[warm] worker ready (connection held warm)');
+            this.restartAttempts = 0;
+            this.logger.info('Warm worker ready (connection held warm)');
             return;
         }
 
@@ -113,7 +132,7 @@ export class WarmPlayer {
                 clearTimeout(pending.timer);
                 this.pending.delete(key);
                 if (msg.ok === false && msg.error) {
-                    this.logger.warn(`[warm] play failed: ${msg.error}`);
+                    this.logger.warn(`Warm play failed: ${msg.error}`);
                 }
                 pending.resolve(msg.ok === true);
             }
@@ -124,9 +143,19 @@ export class WarmPlayer {
         if (this.stopped) {
             return;
         }
+        this.restartAttempts += 1;
+        if (this.restartAttempts > this.MAX_RESTART_ATTEMPTS) {
+            this.restartDisabled = true;
+            this.logger.error(
+                `Warm worker failed to start after ${this.MAX_RESTART_ATTEMPTS} attempts; disabling warm connection until Homebridge restarts`,
+            );
+            return;
+        }
         const delay = this.restartDelay;
         this.restartDelay = Math.min(this.restartDelay * 2, this.MAX_RESTART_DELAY);
-        this.logger.info(`[warm] restarting worker in ${delay}ms`);
+        this.logger.info(
+            `Restarting warm worker in ${delay}ms (attempt ${this.restartAttempts}/${this.MAX_RESTART_ATTEMPTS})`,
+        );
         setTimeout(() => this.start(), delay);
     }
 
@@ -158,7 +187,7 @@ export class WarmPlayer {
         return new Promise<boolean>((resolve) => {
             const timer = setTimeout(() => {
                 this.pending.delete(id);
-                this.logger.warn(`[warm] play timed out for ${filePath}`);
+                this.logger.warn(`Warm play timed out for ${filePath}`);
                 resolve(false);
             }, this.PLAY_TIMEOUT_MS);
 
@@ -169,7 +198,7 @@ export class WarmPlayer {
             } catch (err) {
                 clearTimeout(timer);
                 this.pending.delete(id);
-                this.logger.warn(`[warm] failed to write to worker: ${err}`);
+                this.logger.warn(`Failed to write to warm worker: ${err}`);
                 resolve(false);
             }
         });
