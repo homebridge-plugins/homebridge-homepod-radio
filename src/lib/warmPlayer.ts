@@ -32,8 +32,8 @@ export class WarmPlayer {
 
     private restartDelay = 1000;
     private readonly MAX_RESTART_DELAY = 30000;
-    private restartAttempts = 0;
-    private readonly MAX_RESTART_ATTEMPTS = 6;
+    private startAttempts = 0;
+    private readonly MAX_START_ATTEMPTS = 3;
     private readonly PLAY_TIMEOUT_MS = 60000;
 
     private nextId = 1;
@@ -58,11 +58,15 @@ export class WarmPlayer {
             return;
         }
 
+        this.startAttempts += 1;
+
         const args = ['-u', this.scriptPath, '--id', this.homepodId];
         if (this.verboseMode) {
             args.push('--verbose');
         }
-        this.logger.info(`Starting warm worker: python3 ${args.join(' ')}`);
+        this.logger.info(
+            `Starting warm worker (attempt ${this.startAttempts}/${this.MAX_START_ATTEMPTS}): python3 ${args.join(' ')}`,
+        );
 
         this.worker = child.spawn('python3', args, { env: { ...process.env } });
 
@@ -94,7 +98,28 @@ export class WarmPlayer {
             .map((line) => line.trim())
             .filter((line) => line.length > 0);
 
+        // The worker logs to stderr as "<date> <time> <LEVEL> [warm-worker]: <message>".
+        // Strip that prefix so Homebridge doesn't double-stamp it, and route by the
+        // worker's own level instead of guessing from keywords.
+        const prefix =
+            /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\s+(DEBUG|INFO|WARNING|ERROR|CRITICAL)\s+\[[^\]]*\]:\s*(.*)$/;
+
         for (const line of lines) {
+            const match = prefix.exec(line);
+            if (match) {
+                const [, level, message] = match;
+                if (level === 'ERROR' || level === 'CRITICAL') {
+                    this.logger.error(`Warm worker: ${message}`);
+                } else if (level === 'WARNING') {
+                    this.logger.warn(`Warm worker: ${message}`);
+                } else {
+                    this.debug(`Warm worker: ${message}`);
+                }
+                continue;
+            }
+
+            // Lines without the worker's standard prefix (e.g. raw traceback
+            // continuation lines): fall back to a keyword heuristic.
             if (/traceback|error|exception|module not found/i.test(line)) {
                 this.logger.error(`Warm worker: ${line}`);
             } else {
@@ -120,7 +145,7 @@ export class WarmPlayer {
         if (msg.event === 'ready') {
             this.ready = true;
             this.restartDelay = 1000; // healthy start resets backoff
-            this.restartAttempts = 0;
+            this.startAttempts = 0;
             this.logger.info('Warm worker ready (connection held warm)');
             return;
         }
@@ -143,18 +168,18 @@ export class WarmPlayer {
         if (this.stopped) {
             return;
         }
-        this.restartAttempts += 1;
-        if (this.restartAttempts > this.MAX_RESTART_ATTEMPTS) {
+        const nextAttempt = this.startAttempts + 1;
+        if (nextAttempt > this.MAX_START_ATTEMPTS) {
             this.restartDisabled = true;
             this.logger.error(
-                `Warm worker failed to start after ${this.MAX_RESTART_ATTEMPTS} attempts; disabling warm connection until Homebridge restarts`,
+                `Warm worker failed to start after ${this.MAX_START_ATTEMPTS} attempts; disabling warm connection until Homebridge restarts`,
             );
             return;
         }
         const delay = this.restartDelay;
         this.restartDelay = Math.min(this.restartDelay * 2, this.MAX_RESTART_DELAY);
         this.logger.info(
-            `Restarting warm worker in ${delay}ms (attempt ${this.restartAttempts}/${this.MAX_RESTART_ATTEMPTS})`,
+            `Restarting warm worker in ${delay}ms (attempt ${nextAttempt}/${this.MAX_START_ATTEMPTS})`,
         );
         setTimeout(() => this.start(), delay);
     }
