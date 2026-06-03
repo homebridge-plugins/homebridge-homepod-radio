@@ -2,7 +2,7 @@
   "name": "@homebridge-plugins/homebridge-homepod-radio",
   "displayName": "Homepod Mini Radio",
   "type": "module",
-  "version": "3.2.10",
+  "version": "3.2.11",
   "description": "Homebridge accessory for streaming radio to Homepod Mini and Apple TV",
   "author": "Petro Kushchak",
   "license": "MIT",
