@@ -5,6 +5,8 @@ import * as path from 'path';
 import * as readline from 'readline';
 import { fileURLToPath } from 'url';
 
+import { computeWatchdog } from './playTimeout.js';
+
 const __filename = fileURLToPath(import.meta.url);
 
 interface PendingRequest {
@@ -196,17 +198,24 @@ export class WarmPlayer {
             return;
         }
         clearTimeout(pending.timer);
-        const numeric = typeof seconds === 'number' ? seconds : NaN;
-        const known = Number.isFinite(numeric) && numeric > 0;
-        const timeoutMs = known
-            ? Math.ceil(numeric * 1000) + this.PLAY_TIMEOUT_PADDING_MS
-            : this.UNKNOWN_DURATION_TIMEOUT_MS;
+        const { timeoutMs, known } = computeWatchdog(
+            seconds,
+            this.PLAY_TIMEOUT_PADDING_MS,
+            this.UNKNOWN_DURATION_TIMEOUT_MS,
+        );
         pending.timer = setTimeout(() => this.firePlayTimeout(id), timeoutMs);
         const watchdogS = Math.round(timeoutMs / 1000);
+        // Logged at info on purpose: issue #360 was a *silent* premature cut-off,
+        // so surfacing the chosen watchdog (once per play, matching the existing
+        // "Started/Finished file streaming" lines) is the breadcrumb needed to
+        // diagnose any future mis-sizing without enabling verbose mode.
         if (known) {
-            this.debug(`Warm play watchdog set to ${watchdogS}s for ${pending.filePath} (track ~${Math.round(numeric)}s)`);
+            const trackS = Math.round(seconds as number);
+            this.logger.info(`Warm play watchdog set to ${watchdogS}s for ${pending.filePath} (track ~${trackS}s)`);
         } else {
-            this.debug(`Warm play length unknown for ${pending.filePath}; using ${watchdogS}s fallback (install mutagen for exact timing)`);
+            this.logger.info(
+                `Warm play length unknown for ${pending.filePath}; using ${watchdogS}s fallback (install mutagen for exact timing)`,
+            );
         }
     }
 

@@ -26,9 +26,8 @@ jobs:
       - name: Lint the project
         run: npm run lint
 
-      # Comment out temporarily
-      #- name: Run tests
-      #  run: npm test
+      - name: Run unit tests
+        run: npm test
 
       - name: Build the project
         run: npm run build

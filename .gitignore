@@ -119,5 +119,9 @@ dist
 .yarn/build-state.yml
 .pnp.*
 
+# Python bytecode (warm-worker.py / stream.py and their tests)
+__pycache__/
+*.py[cod]
+
 **/.DS_Store
 .idea

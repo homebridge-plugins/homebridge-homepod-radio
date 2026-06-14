@@ -38,8 +38,9 @@
     "lint": "eslint src/**.ts --max-warnings=0",
     "watch": "npm run build && npm link && nodemon",
     "build": "rimraf ./dist && tsc && npm run copy",
-    "copy": "cp bin/* dist",
+    "copy": "cp -R bin/* dist && rimraf dist/__pycache__",
     "e2e": "npm run build && node dist/e2e/test_e2e.js",
+    "test": "npm run build && node --test dist/test/*.test.js",
     "prepublishOnly": "npm run lint && npm run build"
   },
   "dependencies": {
