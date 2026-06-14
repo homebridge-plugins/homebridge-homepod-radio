@@ -14,6 +14,7 @@ Protocol (newline-delimited JSON; one object per line):
             {"id": "<id>", "cmd": "ping"}
 
     stdout  {"event": "ready"}                       (once, after startup)
+            {"id": "<id>", "event": "duration", "seconds": <float|null>}
             {"id": "<id>", "ok": true}
             {"id": "<id>", "ok": false, "error": "..."}
 
@@ -40,6 +41,15 @@ except ImportError as ex:
     MediaMetadata = None
     _PYATV_IMPORT_ERROR = ex
 
+try:
+    # Pure-Python audio metadata reader (no ffmpeg) used to size the play timeout
+    # to the real track length. Optional: when it is missing we still read .wav
+    # durations via the stdlib ``wave`` module and fall back to a generous timeout
+    # for other formats.
+    from mutagen import File as _MutagenFile
+except ImportError:
+    _MutagenFile = None
+
 
 _LOGGER = logging.getLogger("warm-worker")
 
@@ -48,6 +58,70 @@ def _out(obj) -> None:
     """Write one protocol message to stdout and flush immediately."""
     sys.stdout.write(json.dumps(obj) + "\n")
     sys.stdout.flush()
+
+
+def _expand_playlist(file_path: str):
+    """Expand an .m3u/.m3u8 playlist into a list of song paths (mirrors stream.py).
+
+    A non-playlist path is returned unchanged as a single-element list.
+    """
+    if file_path.endswith(".m3u") or file_path.endswith(".m3u8"):
+        folder = os.path.dirname(file_path)
+        with open(file_path, "r", encoding="UTF-8") as playlist:
+            lines = [ln.strip() for ln in playlist if ln.strip()]
+        return [
+            os.path.join(folder, ln)
+            for ln in lines
+            if re.match(r"^[A-Za-z0-9]", ln)
+            and not re.match(r"^[A-Za-z]:\\", ln)
+            and not re.match(r"^http[s]?://", ln)
+        ]
+    return [file_path]
+
+
+def _audio_duration(path: str):
+    """Best-effort duration in seconds of one audio file, or ``None`` if unknown.
+
+    Uses the stdlib ``wave`` module for ``.wav`` (always available) and
+    ``mutagen`` for mp3/flac/ogg and friends. ``mutagen`` is pure Python and does
+    not need ffmpeg; when it is not installed, non-wav files report ``None`` and
+    the supervisor falls back to a generous timeout.
+    """
+    try:
+        ext = os.path.splitext(path)[1].lower()
+        if ext == ".wav":
+            import wave
+
+            with wave.open(path, "rb") as wav:
+                rate = wav.getframerate()
+                if rate > 0:
+                    return wav.getnframes() / float(rate)
+            return None
+        if _MutagenFile is not None:
+            audio = _MutagenFile(path)
+            info = getattr(audio, "info", None) if audio is not None else None
+            length = getattr(info, "length", None) if info is not None else None
+            if length and length > 0:
+                return float(length)
+    except Exception as ex:  # noqa: BLE001 - duration is best-effort only
+        _LOGGER.debug("could not read duration of %s: %s", path, ex)
+    return None
+
+
+def _total_duration(songs):
+    """Total seconds across an expanded playlist, or ``None`` if any are unknown.
+
+    Returning ``None`` when even one file's length is unreadable is deliberate:
+    an underestimated total would re-introduce the premature-timeout bug, so we
+    prefer the supervisor's generous fallback in that case.
+    """
+    total = 0.0
+    for song in songs:
+        seconds = _audio_duration(song)
+        if seconds is None:
+            return None
+        total += seconds
+    return total
 
 
 class WarmConnection:
@@ -94,24 +168,14 @@ class WarmConnection:
                 pass
             self.atv = None
 
-    async def _expand(self, file_path: str):
-        # Mirror stream.py m3u/m3u8 handling so warm playback matches spawn.
-        if file_path.endswith(".m3u") or file_path.endswith(".m3u8"):
-            folder = os.path.dirname(file_path)
-            with open(file_path, "r", encoding="UTF-8") as playlist:
-                lines = [ln.strip() for ln in playlist if ln.strip()]
-            return [
-                os.path.join(folder, ln)
-                for ln in lines
-                if re.match(r"^[A-Za-z0-9]", ln)
-                and not re.match(r"^[A-Za-z]:\\", ln)
-                and not re.match(r"^http[s]?://", ln)
-            ]
-        return [file_path]
-
-    async def play(self, file_path: str, volume, title: str) -> None:
-        """Stream a file (or m3u) on the warm connection, reconnecting once on error."""
+    async def play(self, req_id, songs, volume, title: str) -> None:
+        """Stream pre-expanded songs on the warm connection, reconnecting once on error."""
         async with self._lock:
+            # Now that we hold the playback lock and are about to stream, tell the
+            # supervisor how long this will take. It sizes its watchdog timeout to
+            # the real audio length instead of a fixed 60s, which previously cut
+            # off (and then double-played via the spawn fallback) any longer track.
+            _out({"id": req_id, "event": "duration", "seconds": _total_duration(songs)})
             last_err = None
             for attempt in (1, 2):
                 try:
@@ -122,10 +186,10 @@ class WarmConnection:
                         except Exception as ex:  # noqa: BLE001
                             _LOGGER.warning("set_volume(%s) failed: %s", volume, ex)
                     metadata = MediaMetadata(title=title, album=title, artist=None, artwork=None)
-                    for song in await self._expand(file_path):
+                    for song in songs:
                         _LOGGER.info("streaming %s (attempt %d)", song, attempt)
                         await atv.stream.stream_file(song, metadata)
-                    _LOGGER.info("finished streaming %s", file_path)
+                    _LOGGER.info("finished streaming %d file(s)", len(songs))
                     return
                 except Exception as ex:  # noqa: BLE001
                     last_err = ex
@@ -181,7 +245,7 @@ async def main_async(identifier: str) -> None:
                 _out({"id": req_id, "ok": False, "error": "missing file"})
                 continue
             try:
-                await conn.play(file_path, volume, title)
+                await conn.play(req_id, _expand_playlist(file_path), volume, title)
                 _out({"id": req_id, "ok": True})
             except Exception as ex:  # noqa: BLE001
                 _out({"id": req_id, "ok": False, "error": str(ex)})

@@ -191,6 +191,12 @@ Notes:
   button.
 - The first press after restart may still be slightly slower while the worker
   finishes its initial warm-up.
+- The warm worker sizes its internal playback timeout to the actual length of
+  the audio (or playlist) being streamed, so tracks longer than a minute play in
+  full. `.wav` durations are read with Python's built-in `wave` module; for
+  `.mp3`, `.flac`, and `.ogg` install the optional `mutagen` package (see
+  [Dependencies](#dependencies)) so the length can be measured exactly. Without
+  it, non-`.wav` tracks fall back to a generous default timeout.
 
 ### Webhook for audio file playback
 
@@ -264,6 +270,27 @@ Make atvremote available for homebridge:
 ```
 sudo ln -s /home/pi/.local/bin/atvremote /usr/local/bin/atvremote
 ```
+
+### Optional: mutagen (accurate warm-play timeouts)
+
+When the warm connection is enabled (the default), the plugin sizes each play's
+internal timeout to the real length of the audio so tracks longer than a minute
+are not cut off mid-playback. `.wav` files are measured with Python's built-in
+`wave` module, but `.mp3`, `.flac`, and `.ogg` files need the lightweight,
+pure-Python [`mutagen`](https://mutagen.readthedocs.io/) package (no ffmpeg
+required):
+```
+pip3 install mutagen
+```
+If the install fails with `externally-managed-environment`, add the
+`--break-system-packages` option:
+```
+pip3 install mutagen --break-system-packages
+```
+`mutagen` is optional: without it, non-`.wav` tracks simply fall back to a
+generous default timeout instead of an exact one. In the Homebridge Docker
+container, add the same `pip3 install mutagen --break-system-packages` line to
+`startup.sh` next to `pyatv` so it survives container recreation.
 
 ### Installing the PyATV lib in the Homebridge Docker container
 

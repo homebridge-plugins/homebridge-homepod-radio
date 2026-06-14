@@ -10,6 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 interface PendingRequest {
     resolve: (ok: boolean) => void;
     timer: ReturnType<typeof setTimeout>;
+    filePath: string;
 }
 
 /**
@@ -34,7 +35,16 @@ export class WarmPlayer {
     private readonly MAX_RESTART_DELAY = 30000;
     private startAttempts = 0;
     private readonly MAX_START_ATTEMPTS = 3;
-    private readonly PLAY_TIMEOUT_MS = 60000;
+    // How long to wait for the worker to even acknowledge a play request (with a
+    // duration estimate) before assuming it is wedged and falling back to spawn.
+    private readonly INITIAL_ACK_TIMEOUT_MS = 60000;
+    // Headroom added on top of the worker-reported track length before the
+    // watchdog fires, to absorb network jitter and AirPlay buffering.
+    private readonly PLAY_TIMEOUT_PADDING_MS = 30000;
+    // Fallback watchdog used when the worker cannot determine the audio length
+    // (e.g. mutagen is not installed for a non-wav file). Deliberately generous
+    // so a legitimately long track is never cut off mid-playback.
+    private readonly UNKNOWN_DURATION_TIMEOUT_MS = 30 * 60 * 1000;
 
     private nextId = 1;
     private readonly pending = new Map<string, PendingRequest>();
@@ -150,6 +160,13 @@ export class WarmPlayer {
             return;
         }
 
+        // The worker reports the track length once it actually starts streaming,
+        // so re-arm the watchdog to match instead of leaving the fixed start guard.
+        if (msg.event === 'duration' && msg.id !== undefined && msg.id !== null) {
+            this.applyPlayTimeout(String(msg.id), msg.seconds);
+            return;
+        }
+
         if (msg.id !== undefined && msg.id !== null) {
             const key = String(msg.id);
             const pending = this.pending.get(key);
@@ -157,11 +174,50 @@ export class WarmPlayer {
                 clearTimeout(pending.timer);
                 this.pending.delete(key);
                 if (msg.ok === false && msg.error) {
-                    this.logger.warn(`Warm play failed: ${msg.error}`);
+                    // The warm worker started successfully, so a stream failure is a
+                    // genuine error (not just a warning) even though we fall back.
+                    this.logger.error(`Warm play failed: ${msg.error}`);
                 }
                 pending.resolve(msg.ok === true);
             }
         }
+    }
+
+    /**
+     * Re-arm a pending play's watchdog once the worker reports how long the audio
+     * actually is. A fixed timeout would cut off — and then double-play via the
+     * spawn fallback — any track longer than the old 60s limit, so we size the
+     * timeout to the real duration plus headroom. When the length is unknown we
+     * fall back to a generous cap rather than a too-short fixed value.
+     */
+    private applyPlayTimeout(id: string, seconds: unknown): void {
+        const pending = this.pending.get(id);
+        if (!pending) {
+            return;
+        }
+        clearTimeout(pending.timer);
+        const numeric = typeof seconds === 'number' ? seconds : NaN;
+        const known = Number.isFinite(numeric) && numeric > 0;
+        const timeoutMs = known
+            ? Math.ceil(numeric * 1000) + this.PLAY_TIMEOUT_PADDING_MS
+            : this.UNKNOWN_DURATION_TIMEOUT_MS;
+        pending.timer = setTimeout(() => this.firePlayTimeout(id), timeoutMs);
+        const watchdogS = Math.round(timeoutMs / 1000);
+        if (known) {
+            this.debug(`Warm play watchdog set to ${watchdogS}s for ${pending.filePath} (track ~${Math.round(numeric)}s)`);
+        } else {
+            this.debug(`Warm play length unknown for ${pending.filePath}; using ${watchdogS}s fallback (install mutagen for exact timing)`);
+        }
+    }
+
+    private firePlayTimeout(id: string): void {
+        const pending = this.pending.get(id);
+        if (!pending) {
+            return;
+        }
+        this.pending.delete(id);
+        this.logger.error(`Warm play timed out for ${pending.filePath}`);
+        pending.resolve(false);
     }
 
     private scheduleRestart(): void {
@@ -210,13 +266,12 @@ export class WarmPlayer {
         const payload = JSON.stringify({ id, cmd: 'play', file: filePath, volume, title }) + '\n';
 
         return new Promise<boolean>((resolve) => {
-            const timer = setTimeout(() => {
-                this.pending.delete(id);
-                this.logger.warn(`Warm play timed out for ${filePath}`);
-                resolve(false);
-            }, this.PLAY_TIMEOUT_MS);
+            // Initial guard: the worker must acknowledge with a duration estimate
+            // within this window. Once it does, applyPlayTimeout() re-arms this
+            // timer to the actual track length so long tracks are not cut off.
+            const timer = setTimeout(() => this.firePlayTimeout(id), this.INITIAL_ACK_TIMEOUT_MS);
 
-            this.pending.set(id, { resolve, timer });
+            this.pending.set(id, { resolve, timer, filePath });
 
             try {
                 this.worker!.stdin!.write(payload);
