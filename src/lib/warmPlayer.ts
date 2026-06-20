@@ -64,9 +64,12 @@ export class WarmPlayer {
         if (this.verboseMode) {
             args.push('--verbose');
         }
-        this.logger.info(
-            `Starting warm worker (attempt ${this.startAttempts}/${this.MAX_START_ATTEMPTS}): python3 ${args.join(' ')}`,
-        );
+
+        if (this.startAttempts === 1) {
+            this.logger.warn(`Attempting to start warm worker for HomePod '${this.homepodId}' (max start attempts: ${this.MAX_START_ATTEMPTS})`);
+        }
+
+        this.logger.debug(`Starting warm worker (attempt ${this.startAttempts}/${this.MAX_START_ATTEMPTS}): python3 ${args.join(' ')}`);
 
         this.worker = child.spawn('python3', args, { env: { ...process.env } });
 
@@ -82,7 +85,12 @@ export class WarmPlayer {
         });
 
         this.worker.on('exit', (code, signal) => {
-            this.logger.warn(`Warm worker exited code=${code} signal=${signal}`);
+            // Output warning only outside of startup ()
+            if (this.startAttempts === 0) {
+                this.logger.warn(`Warm worker exited code=${code} signal=${signal}`);
+            } else {
+                this.logger.debug(`Warm worker exited code=${code} signal=${signal}`);
+            }
             this.ready = false;
             this.rl?.close();
             this.rl = undefined;
@@ -109,7 +117,13 @@ export class WarmPlayer {
             if (match) {
                 const [, level, message] = match;
                 if (level === 'ERROR' || level === 'CRITICAL') {
-                    this.logger.error(`Warm worker: ${message}`);
+                    // We don't want a lot of noise during startup, so
+                    // suppress any error output until final attempt
+                    if (this.startAttempts > 0 && this.startAttempts < this.MAX_START_ATTEMPTS) {
+                        this.logger.debug(`Warm worker: ${message}`);
+                    } else {
+                        this.logger.error(`Warm worker: ${message}`);
+                    }
                 } else if (level === 'WARNING') {
                     this.logger.warn(`Warm worker: ${message}`);
                 } else {
@@ -171,16 +185,13 @@ export class WarmPlayer {
         const nextAttempt = this.startAttempts + 1;
         if (nextAttempt > this.MAX_START_ATTEMPTS) {
             this.restartDisabled = true;
-            this.logger.error(
-                `Warm worker failed to start after ${this.MAX_START_ATTEMPTS} attempts; disabling warm connection until Homebridge restarts`,
-            );
+            this.startAttempts = 0;
+            this.logger.error(`Warm worker failed to start after ${this.MAX_START_ATTEMPTS} attempts. Disabling warm connection until Homebridge restarts`);
             return;
         }
         const delay = this.restartDelay;
         this.restartDelay = Math.min(this.restartDelay * 2, this.MAX_RESTART_DELAY);
-        this.logger.info(
-            `Restarting warm worker in ${delay}ms (attempt ${nextAttempt}/${this.MAX_START_ATTEMPTS})`,
-        );
+        this.logger.debug(`Restarting warm worker in ${delay}ms (attempt ${nextAttempt}/${this.MAX_START_ATTEMPTS})`);
         setTimeout(() => this.start(), delay);
     }
 
