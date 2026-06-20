@@ -206,8 +206,8 @@ def main() -> None:
     )
 
     if _PYATV_IMPORT_ERROR is not None:
+        _LOGGER.warning("Import error: %s", _PYATV_IMPORT_ERROR)
         _LOGGER.error("Required dependency 'pyatv' was not found. Install it with: pip3 install pyatv")
-        _LOGGER.error("Import error: %s", _PYATV_IMPORT_ERROR)
         sys.exit(1)
 
     try:
