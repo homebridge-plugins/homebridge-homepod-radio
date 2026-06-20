@@ -256,12 +256,14 @@ export class WarmPlayer {
         return new Promise<boolean>((resolve) => {
             // Set minimu timeout of MIN_PLAY_TIMEOUT_MS
             // Add a 10% headroom padding
+            const dynamicTimeout = Math.max(this.MIN_PLAY_TIMEOUT_MS, playDuration * 1000) * 1.1;
+            this.logger.info(`Play duration: ${playDuration} seconds. Dynamic timeout: ${dynamicTimeout} milliseconds`);
+
             const timer = setTimeout(() => {
                 this.pending.delete(id);
                 this.logger.warn(`Warm play timed out for ${filePath}`);
                 resolve(false);
-            },
-            Math.max(this.MIN_PLAY_TIMEOUT_MS, playDuration * 1000) * 1.1);
+            }, dynamicTimeout);
 
             this.pending.set(id, { resolve, timer });
 
