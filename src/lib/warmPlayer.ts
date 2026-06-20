@@ -4,6 +4,8 @@ import * as child from 'child_process';
 import * as path from 'path';
 import * as readline from 'readline';
 import { fileURLToPath } from 'url';
+import { getAudioDuration } from "audio-duration-lite";
+import * as fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -34,7 +36,7 @@ export class WarmPlayer {
     private readonly MAX_RESTART_DELAY = 30000;
     private startAttempts = 0;
     private readonly MAX_START_ATTEMPTS = 3;
-    private readonly PLAY_TIMEOUT_MS = 60000;
+    private readonly MIN_PLAY_TIMEOUT_MS = 60 * 1000; // 60 seconds
 
     private nextId = 1;
     private readonly pending = new Map<string, PendingRequest>();
@@ -207,12 +209,41 @@ export class WarmPlayer {
         return this.ready && !!this.worker;
     }
 
+    private async getPlayDuration(filePath: string): Promise<number> {
+        var duration = 0;
+
+        var fileExtension = filePath.split('.').pop();
+        if (fileExtension === 'm3u' || fileExtension === 'm3u8') {
+            // Calculate the duration of the playlist by adding individual file durations
+
+            const audio_folder = path.dirname(filePath);
+
+            const fileStream = fs.createReadStream(filePath);
+            const rl = readline.createInterface({input: fileStream, crlfDelay: Infinity});
+            for await (const line of rl) {
+                const playlistFile = line.trim();
+                if (
+                    playlistFile.match(/^[A-Za-z0-9]/) &&    // file path starts with letter or number
+                    !playlistFile.match(/^[A-Za-z]:\\/) &&   // file does not start with "x:\"
+                    !playlistFile.match(/^http[s]?:\//)      // file does not start with "http(s)"
+                ) {                    
+                    duration += Math.ceil(await getAudioDuration(audio_folder + '/' + playlistFile));
+                }
+            }
+        } else {
+            duration += Math.ceil(await getAudioDuration(filePath));
+        }
+
+        // Round up to the next integer value
+        return duration;
+    }
+
     /**
      * Ask the warm worker to play a file. Resolves `true` on success, or `false`
      * if the worker is unavailable or the play failed, so the caller can fall
      * back to spawning stream.py.
      */
-    public playFile(filePath: string, volume: number, title: string): Promise<boolean> {
+    public async playFile(filePath: string, volume: number, title: string): Promise<boolean> {
         if (!this.isReady()) {
             return Promise.resolve(false);
         }
@@ -220,12 +251,19 @@ export class WarmPlayer {
         const id = String(this.nextId++);
         const payload = JSON.stringify({ id, cmd: 'play', file: filePath, volume, title }) + '\n';
 
+        const playDuration = await this.getPlayDuration(filePath);
+
         return new Promise<boolean>((resolve) => {
+            // Set minimu timeout of MIN_PLAY_TIMEOUT_MS
+            // Add a 10% headroom padding
+            const dynamicTimeout = Math.max(this.MIN_PLAY_TIMEOUT_MS, playDuration * 1000) * 1.1;
+            this.logger.info(`Play duration: ${playDuration} seconds. Dynamic timeout: ${dynamicTimeout} milliseconds`);
+
             const timer = setTimeout(() => {
                 this.pending.delete(id);
                 this.logger.warn(`Warm play timed out for ${filePath}`);
                 resolve(false);
-            }, this.PLAY_TIMEOUT_MS);
+            }, dynamicTimeout);
 
             this.pending.set(id, { resolve, timer });
 
