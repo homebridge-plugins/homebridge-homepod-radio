@@ -5,7 +5,7 @@ import { PLUGIN_MANUFACTURER, PLUGIN_MODEL } from './platformConstants.js';
 
 import { AirPlayDevice } from './lib/airplayDevice.js';
 import { callbackify } from './lib/homebridgeCallbacks.js';
-import { PlaybackStreamer } from './lib/playbackController.js';
+import { PlaybackController, PlaybackStreamer } from './lib/playbackController.js';
 
 export class HomepodVolumeAccessory implements AccessoryPlugin, PlaybackStreamer {
     private readonly device: AirPlayDevice;
@@ -17,9 +17,13 @@ export class HomepodVolumeAccessory implements AccessoryPlugin, PlaybackStreamer
     constructor(
         private readonly platform: HomepodRadioPlatform,
         private readonly accessory: PlatformAccessory,
+        private readonly homepodId: string,
+        private readonly serialNumber: string,
+        private readonly defaultVolume: number,
+        private readonly playbackController: PlaybackController,
     ) {
         this.device = new AirPlayDevice(
-            this.platform.platformConfig.homepodId,
+            this.homepodId,
             platform.logger,
             platform.platformConfig.verboseMode,
             this.streamerName(),
@@ -27,7 +31,7 @@ export class HomepodVolumeAccessory implements AccessoryPlugin, PlaybackStreamer
             '',
         );
 
-        this.currentVolume = this.platform.platformConfig.volume;
+        this.currentVolume = this.defaultVolume;
 
         this.service =
             this.accessory.getService(this.platform.Service.Lightbulb) ||
@@ -52,13 +56,15 @@ export class HomepodVolumeAccessory implements AccessoryPlugin, PlaybackStreamer
         this.informationService
             .setCharacteristic(this.platform.Characteristic.Manufacturer, PLUGIN_MANUFACTURER)
             .setCharacteristic(this.platform.Characteristic.Model, PLUGIN_MODEL)
-            .setCharacteristic(this.platform.Characteristic.SerialNumber, this.platform.platformConfig.serialNumber)
-            .setCharacteristic(this.platform.Characteristic.Name, this.platform.platformConfig.homepodId);
+            .setCharacteristic(this.platform.Characteristic.SerialNumber, this.serialNumber)
+            .setCharacteristic(this.platform.Characteristic.Name, this.homepodId);
 
         // This will do its best to keep the actual outputs status up to date with Homekit.
         setInterval(async () => {
             // this.service.getCharacteristic(this.platform.Characteristic.On).updateValue(this.isPlaying());
         }, 3000);
+
+        this.playbackController.addStreamer(this);
 
         this.platform.logger.info(`[${this.streamerName()}] Finished initializing`);
     }
@@ -77,7 +83,7 @@ export class HomepodVolumeAccessory implements AccessoryPlugin, PlaybackStreamer
     }
 
     async volumeUpdated(homepodId: string, volume: number): Promise<void> {
-        if (homepodId === this.platform.platformConfig.homepodId) {
+        if (homepodId === this.homepodId) {
             await this.setCurrentVolume(volume);
         }
     }
@@ -129,7 +135,7 @@ export class HomepodVolumeAccessory implements AccessoryPlugin, PlaybackStreamer
     }
 
     streamerName(): string {
-        return `${this.platform.platformConfig.homepodId} Volume`;
+        return `${this.homepodId} Volume`;
     }
 
     /*

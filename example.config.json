@@ -1,10 +1,15 @@
 {
     "platform": "HomepodRadioPlatform",
-    "serialNumber": "20020105:00",
-    "homepodId": "<homepod id>",
+    "homepods": [
+        {
+            "id": "<homepod id or name>",
+            "name": "Living Room",
+            "enableVolumeControl": true,
+            "volume": 25
+        }
+    ],
     "httpPort": 7654,
     "mediaPath": "/media/homepod",
-    "enableVolumeControl": true,
     "radios": [
         {
             "name": "BBC - Radio 1",
