@@ -7,6 +7,7 @@ import { PLUGIN_MANUFACTURER, PLUGIN_MODEL } from './platformConstants.js';
 
 import { AirPlayDevice } from './lib/airplayDevice.js';
 import { PlaybackController, PlaybackStreamer } from './lib/playbackController.js';
+import { WarmPlayer } from './lib/warmPlayer.js';
 
 import * as os from 'os';
 import * as path from 'path';
@@ -23,6 +24,7 @@ export class HomepodAudioSwitchAccessory implements AccessoryPlugin, PlaybackStr
         private readonly homepodId: string,
         private readonly serialNumber: string,
         private readonly playbackController: PlaybackController,
+        private readonly warmPlayer?: WarmPlayer,
     ) {
         this.device = new AirPlayDevice(
             this.homepodId,
@@ -31,6 +33,7 @@ export class HomepodAudioSwitchAccessory implements AccessoryPlugin, PlaybackStr
             this.streamerName(),
             '',
             '',
+            this.warmPlayer,
         );
 
         this.service =

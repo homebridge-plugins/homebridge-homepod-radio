@@ -2,7 +2,7 @@
   "name": "@homebridge-plugins/homebridge-homepod-radio",
   "displayName": "Homepod Mini Radio",
   "type": "module",
-  "version": "3.2.6",
+  "version": "3.2.12",
   "description": "Homebridge accessory for streaming radio to Homepod Mini and Apple TV",
   "author": "Petro Kushchak",
   "license": "MIT",
@@ -43,17 +43,18 @@
     "prepublishOnly": "npm run lint && npm run build"
   },
   "dependencies": {
-    "homebridge-lib": "^7.1.4"
+    "audio-duration-lite": "^1.0.4",
+    "homebridge-lib": "^8.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
-    "@types/node": "^25.0.2",
+    "@types/node": "^26.0.0",
     "eslint": "^10.0.1",
     "homebridge": "^2.0.0-beta.55",
     "nodemon": "^3.1.9",
     "rimraf": "^6.0.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.7.3",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.24.1"
   }
 }

@@ -220,6 +220,37 @@ For Whom The Bell Tolls.mp3
 > [!NOTE]
 > Comments starting with `#` and empty lines are ignored.
 
+### Low-latency audio buttons
+
+By default, every audio-file button press starts a fresh `python3` helper that
+imports pyatv and re-establishes the AirPlay connection before any sound plays.
+For short sound effects (door chimes, alerts, ringtones) that startup cost
+dominates the perceived delay.
+
+To avoid it, the plugin keeps a single, long-lived pyatv worker running. The
+worker imports pyatv once and holds the connection open, so button presses skip
+the cold start and play noticeably sooner. This is **on by default** and is only
+started when at least one `audioFiles` entry is configured, so installs without
+audio buttons consume no extra resources.
+
+If you ever want to disable it (and fall back to the original spawn-per-press
+behavior), set `keepConnectionWarm` to `false` in your config:
+
+```
+    "keepConnectionWarm": false
+```
+
+Notes:
+
+- The warm path applies to the HomeKit **audio-file switch accessories**. The
+  webhook (`/play/...`) endpoint is unaffected and continues to use the standard
+  path.
+- If the warm worker is unavailable for any reason, playback automatically falls
+  back to the standard spawn path, so a worker failure never silently breaks a
+  button.
+- The first press after restart may still be slightly slower while the worker
+  finishes its initial warm-up.
+
 ### Webhook for audio file playback
 
 You should use the Homebridge server name (default for Homebridge server is homebridge.local) or IP to invoke playback via URL
@@ -297,7 +328,7 @@ error: externally-managed-environment
 ```
 Then install pyatv with the `break-system-packages` option:
 ```
-pip3 install --break-system-packages
+pip3 install pyatv --break-system-packages
 ```
 Make atvremote available for homebridge:
 ```
@@ -310,7 +341,7 @@ The Homebridge Docker image comes with the latest version of `python` pre-instal
 
 To avoid having to reinstall `pyatv` every time the container is recreated (for example when updating the Homebridge image), Homebridge provides the `startup.sh` script, which is executed after the Docker container is finished starting up. Add the following line to the end of `startup.sh`:
 ```
-pip3 install --break-system-packages
+pip3 install pyatv --break-system-packages
 ```
 You can do this from the command line (using your favorite editor) and finding the script in the Homebridge `config` folder. Alternatively you can edit it from the Homebridge UI, by going to `Settings`, `Startup & Environment`, `Startup Script`. If you edit the script from the UI or after the container has started, you will need to restart the container.
 

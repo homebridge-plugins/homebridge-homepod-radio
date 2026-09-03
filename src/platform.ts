@@ -11,6 +11,7 @@ import { HomepodVolumeAccessory } from './platformHomepodVolumeAccessory.js';
 
 import { delay } from './lib/promises.js';
 import { HttpService } from './lib/httpService.js';
+import { WarmPlayer } from './lib/warmPlayer.js';
 
 let hap: HAP;
 
@@ -24,6 +25,7 @@ export class HomepodRadioPlatform implements DynamicPlatformPlugin {
     private readonly platformActions: Map<string, HomepodRadioPlatformWebActions> = new Map();
 
     private readonly httpService!: HttpService;
+    private readonly warmPlayers: Map<string, WarmPlayer> = new Map();
 
     public readonly Service: typeof Service;
     public readonly Characteristic: typeof Characteristic;
@@ -72,6 +74,23 @@ export class HomepodRadioPlatform implements DynamicPlatformPlugin {
 
             this.platformConfig.homepods.forEach((homepod) => {
                 const controller = this.playbackControllers.get(homepod.id)!;
+
+                // Start one warm worker (held pyatv connection) per homepod before
+                // adding audio buttons, so the first press can already use it. On
+                // by default, but only when at least one audio button is
+                // configured so installs without audio buttons consume no extra
+                // resources.
+                if (this.platformConfig.keepConnectionWarm && this.platformConfig.audioFiles.length > 0) {
+                    this.logger.info(`Platform: keeping AirPlay connection warm for audio buttons (${homepod.name || homepod.id})`);
+                    const warmPlayer = new WarmPlayer(
+                        homepod.id,
+                        this.logger,
+                        this.platformConfig.verboseMode,
+                    );
+                    this.warmPlayers.set(homepod.id, warmPlayer);
+                    warmPlayer.start();
+                }
+
                 this.platformConfig.radios.forEach((radio) => this.addRadioAccessory(radio, homepod, controller));
                 this.platformConfig.audioFiles.forEach((fileSwitch) => this.addFileSwitchAccessory(fileSwitch, homepod, controller));
                 this.addHomepodVolumeAccessory(homepod, controller);
@@ -91,6 +110,7 @@ export class HomepodRadioPlatform implements DynamicPlatformPlugin {
             if (this.platformConfig.httpPort > 0) {
                 this.httpService.stop();
             }
+            this.warmPlayers.forEach((warmPlayer) => warmPlayer.stop());
         });
     }
 
@@ -158,7 +178,7 @@ export class HomepodRadioPlatform implements DynamicPlatformPlugin {
         // @see https://github.com/homebridge/homebridge/issues/2553#issuecomment-623675893
         accessory.category = Categories.SPEAKER;
 
-        new HomepodAudioSwitchAccessory(this, accessory, fileSwitch, homepod.id, homepod.serialNumber, controller);
+        new HomepodAudioSwitchAccessory(this, accessory, fileSwitch, homepod.id, homepod.serialNumber, controller, this.warmPlayers.get(homepod.id));
 
         // SmartSpeaker service must be added as an external accessory.
         // @see https://github.com/homebridge/homebridge/issues/2553#issuecomment-622961035
