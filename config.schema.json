@@ -13,15 +13,61 @@
                 "required": true,
                 "default": "HomePod Mini Radio"
             },
+            "homepods": {
+                "title": "HomePods",
+                "description": "Configure one or more HomePods/Apple TVs. If set, 'HomePod Id' below is ignored.",
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "title": "{{ value.name || 'New HomePod' }}",
+                    "expandable": true,
+                    "expanded": false,
+                    "properties": {
+                        "id": {
+                            "title": "HomePod Id",
+                            "description": "MAC address (ex: '00-B0-D0-63-C2-26') or HK name (ex: 'Living Room HomePod')",
+                            "type": "string",
+                            "required": true
+                        },
+                        "name": {
+                            "title": "Friendly Name",
+                            "description": "Used in accessory names and HTTP webhook URLs to identify this HomePod",
+                            "type": "string",
+                            "required": true
+                        },
+                        "serialNumber": {
+                            "title": "Serial Number",
+                            "type": "string",
+                            "placeholder": "If not specified - HomePod Id will be used",
+                            "required": false
+                        },
+                        "enableVolumeControl": {
+                            "title": "Enable Volume Control",
+                            "type": "boolean",
+                            "default": false,
+                            "required": false
+                        },
+                        "volume": {
+                            "title": "Default Volume",
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100,
+                            "placeholder": 25,
+                            "required": false
+                        }
+                    }
+                }
+            },
             "homepodId": {
-                "title": "HomePod Id",
-                "description": "HomePod Id can be MAC address (ex: '00-B0-D0-63-C2-26') or HK name (ex: 'Living Room HomePod')",
+                "title": "HomePod Id (deprecated — use HomePods above instead)",
+                "description": "HomePod Id can be MAC address (ex: '00-B0-D0-63-C2-26') or HK name (ex: 'Living Room HomePod'). Only used if 'HomePods' array above is empty.",
                 "type": "string",
                 "default": "",
-                "required": true
+                "required": false
             },
             "serialNumber": {
                 "title": "Serial Number",
+                "description": "Only used with legacy 'HomePod Id' field above",
                 "type": "string",
                 "default": "",
                 "placeholder": "If not specified - HomePod Id will be used",
@@ -44,14 +90,16 @@
                 "required": false
             },
             "enableVolumeControl": {
-                "title": "Enable Volume Control",
+                "title": "Enable Volume Control (legacy — use per-HomePod setting instead)",
+                "description": "Only used with legacy 'HomePod Id' field",
                 "type": "boolean",
                 "default": "true",
                 "placeholder": "Enable Volume Control",
                 "required": false
             },
             "volume": {
-                "title": "Volume",
+                "title": "Volume (legacy)",
+                "description": "Only used with legacy 'HomePod Id' field",
                 "type": "integer",
                 "placeholder": "Volume Level",
                 "required": false,

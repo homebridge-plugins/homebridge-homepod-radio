@@ -14,6 +14,7 @@ export class HomepodRadioSwitchAccessory implements AccessoryPlugin {
         private readonly platform: HomepodRadioPlatform,
         private readonly accessory: PlatformAccessory,
         private readonly streamer: PlaybackStreamer,
+        private readonly serialNumber: string,
     ) {
         this.service =
             this.accessory.getService(this.platform.Service.Switch) ||
@@ -42,7 +43,7 @@ export class HomepodRadioSwitchAccessory implements AccessoryPlugin {
         this.informationService
             .setCharacteristic(this.platform.Characteristic.Manufacturer, PLUGIN_MANUFACTURER)
             .setCharacteristic(this.platform.Characteristic.Model, PLUGIN_MODEL)
-            .setCharacteristic(this.platform.Characteristic.SerialNumber, this.platform.platformConfig.serialNumber)
+            .setCharacteristic(this.platform.Characteristic.SerialNumber, this.serialNumber)
             .setCharacteristic(this.platform.Characteristic.Name, this.streamer.streamerName() + ' Switch');
 
         // This will do its best to keep the actual outputs status up to date with Homekit.

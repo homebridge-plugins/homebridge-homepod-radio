@@ -29,12 +29,13 @@ export class HomepodRadioPlatformWebActions implements PlaybackStreamer {
 
     constructor(
         private readonly config: HomepodRadioPlatformConfig,
+        private readonly homepodId: string,
         private readonly playbackController: PlaybackController,
         private readonly logger: Logger,
     ) {
         this.playbackController.addStreamer(this);
         this.device = new AirPlayDevice(
-            this.config.homepodId,
+            this.homepodId,
             this.logger,
             this.config.verboseMode,
             this.streamerName(),
