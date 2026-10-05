@@ -22,10 +22,11 @@ export class HomepodAudioSwitchAccessory implements AccessoryPlugin, PlaybackStr
         private readonly accessory: PlatformAccessory,
         private readonly audioConfig: AudioConfig,
         private readonly playbackController: PlaybackController,
+        private readonly homepodId: string,
         private readonly warmPlayer?: WarmPlayer,
     ) {
         this.device = new AirPlayDevice(
-            this.platform.platformConfig.homepodId,
+            this.homepodId,
             platform.logger,
             platform.platformConfig.verboseMode,
             this.streamerName(),
@@ -65,7 +66,7 @@ export class HomepodAudioSwitchAccessory implements AccessoryPlugin, PlaybackStr
             .setCharacteristic(this.platform.Characteristic.Manufacturer, PLUGIN_MANUFACTURER)
             .setCharacteristic(this.platform.Characteristic.Model, PLUGIN_MODEL)
             .setCharacteristic(this.platform.Characteristic.SerialNumber, this.platform.platformConfig.serialNumber)
-            .setCharacteristic(this.platform.Characteristic.Name, this.audioConfig.name);
+            .setCharacteristic(this.platform.Characteristic.Name, this.accessory.displayName);
 
         // This will do its best to keep the actual outputs status up to date with Homekit.
         setInterval(async () => {
@@ -98,7 +99,7 @@ export class HomepodAudioSwitchAccessory implements AccessoryPlugin, PlaybackStr
     }
 
     streamerName(): string {
-        return this.audioConfig.name;
+        return this.accessory.displayName;
     }
 
     isPlaying(): boolean {
@@ -109,8 +110,8 @@ export class HomepodAudioSwitchAccessory implements AccessoryPlugin, PlaybackStr
         await this.playbackController.requestStop(this);
         const mediaPath = this.platform.platformConfig.mediaPath || os.homedir();
         const filePath = path.join(mediaPath, this.audioConfig.fileName);
+        await this.playbackController.updateVolume(this.homepodId, this.audioConfig.volume);
         await this.device.playFile(filePath, this.audioConfig.volume);
-        await this.playbackController.updateVolume(this.platform.platformConfig.homepodId, this.audioConfig.volume);
     }
 
     async stopPlaying(): Promise<void> {

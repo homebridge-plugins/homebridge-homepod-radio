@@ -35,6 +35,7 @@
     "homebridge": "^1.8.0 || ^2.0.0-beta.0"
   },
   "scripts": {
+    "test": "npm run build && node --test tests/*.test.js",
     "lint": "eslint src/**.ts --max-warnings=0",
     "watch": "npm run build && npm link && nodemon",
     "build": "rimraf ./dist && tsc && npm run copy",

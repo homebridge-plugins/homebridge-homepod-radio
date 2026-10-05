@@ -17,9 +17,10 @@ export class HomepodVolumeAccessory implements AccessoryPlugin, PlaybackStreamer
     constructor(
         private readonly platform: HomepodRadioPlatform,
         private readonly accessory: PlatformAccessory,
+        private readonly homepodId: string,
     ) {
         this.device = new AirPlayDevice(
-            this.platform.platformConfig.homepodId,
+            this.homepodId,
             platform.logger,
             platform.platformConfig.verboseMode,
             this.streamerName(),
@@ -53,7 +54,7 @@ export class HomepodVolumeAccessory implements AccessoryPlugin, PlaybackStreamer
             .setCharacteristic(this.platform.Characteristic.Manufacturer, PLUGIN_MANUFACTURER)
             .setCharacteristic(this.platform.Characteristic.Model, PLUGIN_MODEL)
             .setCharacteristic(this.platform.Characteristic.SerialNumber, this.platform.platformConfig.serialNumber)
-            .setCharacteristic(this.platform.Characteristic.Name, this.platform.platformConfig.homepodId);
+            .setCharacteristic(this.platform.Characteristic.Name, this.homepodId);
 
         // This will do its best to keep the actual outputs status up to date with Homekit.
         setInterval(async () => {
@@ -77,8 +78,9 @@ export class HomepodVolumeAccessory implements AccessoryPlugin, PlaybackStreamer
     }
 
     async volumeUpdated(homepodId: string, volume: number): Promise<void> {
-        if (homepodId === this.platform.platformConfig.homepodId) {
-            await this.setCurrentVolume(volume);
+        if (homepodId === this.homepodId && volume > 0) {
+            this.currentVolume = volume;
+            this.service.getCharacteristic(this.platform.Characteristic.Brightness).updateValue(volume);
         }
     }
 
@@ -129,7 +131,7 @@ export class HomepodVolumeAccessory implements AccessoryPlugin, PlaybackStreamer
     }
 
     streamerName(): string {
-        return `${this.platform.platformConfig.homepodId} Volume`;
+        return `${this.homepodId} Volume`;
     }
 
     /*
