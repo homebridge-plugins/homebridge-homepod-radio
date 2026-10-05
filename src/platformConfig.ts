@@ -4,6 +4,7 @@ import { PLUGIN_MODEL, DEFAULT_KEEP_CONNECTION_WARM } from './platformConstants.
 
 export interface RadioConfig {
     name: string;
+    homepodIds: string[];
     model: string;
     radioUrl: string;
     trackName: string;
@@ -16,6 +17,7 @@ export interface RadioConfig {
 
 export interface AudioConfig {
     name: string;
+    homepodIds: string[];
     fileName: string;
     volume: number;
 }
@@ -39,15 +41,18 @@ export class HomepodRadioPlatformConfig {
 
         this.radios = [];
         this.audioFiles = [];
-        if (!config.homepodId) {
-            throw 'Missing "homepodId" setting!';
+        for (const key of ['defaultHomepodId', 'homepodId']) {
+            const value = config[key];
+            if (value !== undefined && (typeof value !== 'string' || (value !== '' && !value.trim()))) {
+                throw new Error(`"${key}" must be a non-blank string or omitted.`);
+            }
         }
-        this.homepodId = config.homepodId;
+        this.homepodId = config.defaultHomepodId || config.homepodId || '';
         this.serialNumber = config.serialNumber || `HPD-${this.homepodId}`;
         this.enableVolumeControl = (config.enableVolumeControl ??= false);
         this.verboseMode = (config.verboseMode ??= false);
 
-        this.httpPort = this.config.httpPort || 4567;
+        this.httpPort = this.config.httpPort ?? 4567;
         this.mediaPath = this.config.mediaPath || '';
 
         this.enableVolumeControl = (this.config.enableVolumeControl ??= false);
@@ -64,6 +69,7 @@ export class HomepodRadioPlatformConfig {
             this.config.audioFiles.forEach((audioConfig) => {
                 const audioFile = {
                     name: audioConfig.name,
+                    homepodIds: this.resolveHomepodIds(audioConfig.homepodIds, audioConfig.name),
                     fileName: audioConfig.fileName,
                     volume: audioConfig.volume || 0,
                 } as AudioConfig;
@@ -78,6 +84,7 @@ export class HomepodRadioPlatformConfig {
             this.config.radios.forEach((radioConfig) => {
                 const radio = {
                     name: radioConfig.name,
+                    homepodIds: this.resolveHomepodIds(radioConfig.homepodIds, radioConfig.name),
                     model: radioConfig.model || PLUGIN_MODEL,
                     radioUrl: radioConfig.radioUrl,
                     trackName: radioConfig.trackName || radioConfig.name,
@@ -92,6 +99,16 @@ export class HomepodRadioPlatformConfig {
                 this.radios.push(radio);
             });
         }
+    }
+
+    private resolveHomepodIds(ids: unknown, name: string): string[] {
+        if (ids === undefined && this.homepodId) {
+            return [this.homepodId];
+        }
+        if (!Array.isArray(ids) || ids.length === 0 || ids.some((id) => typeof id !== 'string' || !id.trim())) {
+            throw new Error(`"${name}" requires non-empty homepodIds or a defaultHomepodId (legacy homepodId is also accepted).`);
+        }
+        return [...new Set(ids)];
     }
 
     public getRadioNames(): string[] {

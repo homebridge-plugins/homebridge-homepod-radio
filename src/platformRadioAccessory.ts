@@ -31,9 +31,10 @@ export class HomepodRadioPlatformAccessory implements PlaybackStreamer {
         private readonly accessory: PlatformAccessory,
         private readonly radio: RadioConfig,
         private readonly playbackController: PlaybackController,
+        private readonly homepodId: string,
     ) {
         this.device = new AirPlayDevice(
-            this.platform.platformConfig.homepodId,
+            this.homepodId,
             platform.logger,
             platform.platformConfig.verboseMode,
             this.streamerName(),
@@ -52,7 +53,7 @@ export class HomepodRadioPlatformAccessory implements PlaybackStreamer {
             .setCharacteristic(this.platform.Characteristic.Manufacturer, PLUGIN_MANUFACTURER)
             .setCharacteristic(this.platform.Characteristic.Model, this.radio.model)
             .setCharacteristic(this.platform.Characteristic.SerialNumber, this.platform.platformConfig.serialNumber)
-            .setCharacteristic(this.platform.Characteristic.Name, this.radio.name);
+            .setCharacteristic(this.platform.Characteristic.Name, this.accessory.displayName);
 
         this.service =
             this.accessory.getService(this.platform.Service.SmartSpeaker) ||
@@ -125,7 +126,7 @@ export class HomepodRadioPlatformAccessory implements PlaybackStreamer {
     }
 
     streamerName(): string {
-        return this.radio.name;
+        return this.accessory.displayName;
     }
 
     isPlaying(): boolean {
@@ -134,6 +135,7 @@ export class HomepodRadioPlatformAccessory implements PlaybackStreamer {
 
     async startPlaying(): Promise<void> {
         await this.playbackController.requestStop(this);
+        await this.playbackController.updateVolume(this.homepodId, this.radio.volume);
         await this.device.playStream(this.radio.radioUrl, this.radio.trackName, this.radio.volume);
     }
 

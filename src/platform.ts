@@ -21,11 +21,11 @@ let hap: HAP;
  * Each accessory may expose multiple services of different service types.
  */
 export class HomepodRadioPlatform implements DynamicPlatformPlugin {
-    private readonly playbackController: PlaybackController = new PlaybackController();
+    private readonly playbackControllers = new Map<string, PlaybackController>();
 
     private readonly httpService: HttpService;
-    private readonly platformActions: HomepodRadioPlatformWebActions;
-    private warmPlayer: WarmPlayer | undefined;
+    private readonly platformActions?: HomepodRadioPlatformWebActions;
+    private readonly warmPlayers = new Map<string, WarmPlayer>();
 
     public readonly Service: typeof Service;
     public readonly Characteristic: typeof Characteristic;
@@ -43,11 +43,13 @@ export class HomepodRadioPlatform implements DynamicPlatformPlugin {
         this.Characteristic = api.hap.Characteristic;
 
         this.platformConfig = new HomepodRadioPlatformConfig(this.config);
-        this.platformActions = new HomepodRadioPlatformWebActions(
-            this.platformConfig,
-            this.playbackController,
-            this.logger,
-        );
+        if (this.platformConfig.homepodId) {
+            this.platformActions = new HomepodRadioPlatformWebActions(
+                this.platformConfig,
+                this.getPlaybackController(this.platformConfig.homepodId),
+                this.logger,
+            );
+        }
         this.httpService = new HttpService(this.platformConfig.httpPort, this.logger);
 
         const loadedRadios = this.platformConfig.getRadioNames();
@@ -56,39 +58,45 @@ export class HomepodRadioPlatform implements DynamicPlatformPlugin {
         this.api.on('didFinishLaunching', async () => {
             this.logger.info('Finished initializing platform');
 
-            // Start one shared warm worker (held pyatv connection) before adding
-            // audio buttons, so the first press can already use it. On by
-            // default, but only when at least one audio button is configured so
-            // installs without audio buttons consume no extra resources.
-            if (this.platformConfig.keepConnectionWarm && this.platformConfig.audioFiles.length > 0) {
-                this.logger.info('Platform: keeping AirPlay connection warm for audio buttons');
-                this.warmPlayer = new WarmPlayer(
-                    this.platformConfig.homepodId,
-                    this.logger,
-                    this.platformConfig.verboseMode,
-                );
-                this.warmPlayer.start();
+            // Share one warm connection among audio buttons targeting the same HomePod.
+            if (this.platformConfig.keepConnectionWarm) {
+                const audioHomepodIds = new Set(this.platformConfig.audioFiles.flatMap((file) => file.homepodIds));
+                for (const homepodId of audioHomepodIds) {
+                    const player = new WarmPlayer(homepodId, this.logger, this.platformConfig.verboseMode);
+                    this.warmPlayers.set(homepodId, player);
+                    player.start();
+                }
             }
 
-            this.platformConfig.radios.forEach((radio) => this.addRadioAccessory(radio));
-            this.platformConfig.audioFiles.forEach((fileSwitch) => this.addFileSwitchAccessory(fileSwitch));
+            this.platformConfig.radios.forEach((radio) => {
+                radio.homepodIds.forEach((id) => this.addRadioAccessory(radio, id));
+            });
+            this.platformConfig.audioFiles.forEach((file) => {
+                file.homepodIds.forEach((id) => this.addFileSwitchAccessory(file, id));
+            });
+            const homepodIds = new Set([
+                ...(this.platformConfig.homepodId ? [this.platformConfig.homepodId] : []),
+                ...this.platformConfig.radios.flatMap((radio) => radio.homepodIds),
+                ...this.platformConfig.audioFiles.flatMap((file) => file.homepodIds),
+            ]);
+            homepodIds.forEach((id) => this.addHomepodVolumeAccessory(id));
             await delay(1000, 0);
-            this.playbackController.platformReady();
+            await Promise.all([...this.playbackControllers.values()].map((controller) => controller.platformReady()));
 
             if (this.platformConfig.httpPort > 0) {
-                this.httpService.start(async (action) => await this.platformActions.handleAction(action));
+                this.httpService.start(async (action) => this.platformActions
+                    ? await this.platformActions.handleAction(action)
+                    : { error: true, message: 'HTTP playback requires defaultHomepodId (or legacy homepodId).' });
             }
-
-            this.addHomepodVolumeAccessory();
         });
 
         this.api.on('shutdown', () => {
             this.logger.info('Platform: shutdown...');
-            this.playbackController.shutdown();
+            this.playbackControllers.forEach((controller) => controller.shutdown());
             if (this.platformConfig.httpPort > 0) {
                 this.httpService.stop();
             }
-            this.warmPlayer?.stop();
+            this.warmPlayers.forEach((player) => player.stop());
         });
     }
 
@@ -103,49 +111,70 @@ export class HomepodRadioPlatform implements DynamicPlatformPlugin {
         // this.accessories.push(accessory);
     }
 
-    private addHomepodVolumeAccessory() {
+    private getPlaybackController(homepodId: string): PlaybackController {
+        let controller = this.playbackControllers.get(homepodId);
+        if (!controller) {
+            controller = new PlaybackController();
+            this.playbackControllers.set(homepodId, controller);
+        }
+        return controller;
+    }
+
+    private accessoryKey(name: string, homepodId: string): string {
+        // Keep existing default-HomePod UUIDs and radio state files intact.
+        return homepodId === this.platformConfig.homepodId ? name : JSON.stringify([name, homepodId]);
+    }
+
+    private accessoryName(name: string, homepodId: string): string {
+        return homepodId === this.platformConfig.homepodId ? name : `${name} (${homepodId})`;
+    }
+
+    private addHomepodVolumeAccessory(homepodId: string) {
         if(!this.platformConfig.enableVolumeControl) {
             this.logger.info('Platform: volume control disabled');
             return;
         }
-        const volumeAccessoryName = this.platformConfig.homepodId;
+        const volumeAccessoryName = homepodId;
         const volumeUuid = hap.uuid.generate('homebridge:homepod:volume:' + volumeAccessoryName);
         const volumeAccessory = new this.api.platformAccessory(`${volumeAccessoryName} Volume`, volumeUuid);
-        new HomepodVolumeAccessory(this, volumeAccessory);
+        const volumeAccessoryHandler = new HomepodVolumeAccessory(this, volumeAccessory, homepodId);
+        this.getPlaybackController(homepodId).addStreamer(volumeAccessoryHandler);
         this.api.publishExternalAccessories(PLUGIN_NAME, [volumeAccessory]);
     }
 
-    private addRadioAccessory(radio: RadioConfig) {
-        const uuid = hap.uuid.generate('homebridge:homepod:radio:' + radio.name);
-        const accessory = new this.api.platformAccessory(radio.name, uuid);
+    private addRadioAccessory(radio: RadioConfig, homepodId: string) {
+        const uuid = hap.uuid.generate('homebridge:homepod:radio:' + this.accessoryKey(radio.name, homepodId));
+        const accessory = new this.api.platformAccessory(this.accessoryName(radio.name, homepodId), uuid);
 
         // Adding Categories.SPEAKER as the category.
         // @see https://github.com/homebridge/homebridge/issues/2553#issuecomment-623675893
         accessory.category = Categories.SPEAKER;
 
-        const radioAccessory = new HomepodRadioPlatformAccessory(this, accessory, radio, this.playbackController);
+        const radioAccessory = new HomepodRadioPlatformAccessory(this, accessory, radio, this.getPlaybackController(homepodId), homepodId);
 
         // SmartSpeaker service must be added as an external accessory.
         // @see https://github.com/homebridge/homebridge/issues/2553#issuecomment-622961035
         // There a no collision issues when calling this multiple times on accessories that already exist.
         this.api.publishExternalAccessories(PLUGIN_NAME, [accessory]);
         if (radio.onSwitch) {
-            const switchUuid = hap.uuid.generate('homebridge:homepod:radio:switch:' + radio.name);
-            const switchAccessory = new this.api.platformAccessory(`${radio.name} Switch`, switchUuid);
+            const switchUuid = hap.uuid.generate('homebridge:homepod:radio:switch:' + this.accessoryKey(radio.name, homepodId));
+            const switchAccessory = new this.api.platformAccessory(`${this.accessoryName(radio.name, homepodId)} Switch`, switchUuid);
             new HomepodRadioSwitchAccessory(this, switchAccessory, radioAccessory);
             this.api.publishExternalAccessories(PLUGIN_NAME, [switchAccessory]);
         }
     }
 
-    private addFileSwitchAccessory(fileSwitch: AudioConfig) {
-        const uuid = hap.uuid.generate('homebridge:homepod:fileSwitch:' + fileSwitch.name);
-        const accessory = new this.api.platformAccessory(fileSwitch.name, uuid);
+    private addFileSwitchAccessory(fileSwitch: AudioConfig, homepodId: string) {
+        const uuid = hap.uuid.generate('homebridge:homepod:fileSwitch:' + this.accessoryKey(fileSwitch.name, homepodId));
+        const accessory = new this.api.platformAccessory(this.accessoryName(fileSwitch.name, homepodId), uuid);
 
         // Adding Categories.SPEAKER as the category.
         // @see https://github.com/homebridge/homebridge/issues/2553#issuecomment-623675893
         accessory.category = Categories.SPEAKER;
 
-        new HomepodAudioSwitchAccessory(this, accessory, fileSwitch, this.playbackController, this.warmPlayer);
+        new HomepodAudioSwitchAccessory(
+            this, accessory, fileSwitch, this.getPlaybackController(homepodId), homepodId, this.warmPlayers.get(homepodId),
+        );
 
         // SmartSpeaker service must be added as an external accessory.
         // @see https://github.com/homebridge/homebridge/issues/2553#issuecomment-622961035

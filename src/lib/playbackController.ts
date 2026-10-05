@@ -22,29 +22,29 @@ export class PlaybackController {
     }
 
     public async requestStop(source: PlaybackStreamer): Promise<void> {
-        this.streamers.forEach(async (streamer) => {
+        await Promise.all(this.streamers.map(async (streamer) => {
             if (streamer !== source) {
                 await streamer.stopRequested(source);
             }
-        });
+        }));
     }
 
     public async shutdown(): Promise<void> {
-        this.streamers.forEach(async (streamer) => {
+        await Promise.all(this.streamers.map(async (streamer) => {
             await streamer.shutdownRequested();
-        });
+        }));
     }
 
     public async platformReady(): Promise<void> {
-        this.streamers.forEach(async (streamer) => {
+        await Promise.all(this.streamers.map(async (streamer) => {
             await streamer.platformLaunched
             ();
-        });
+        }));
     }
 
     public async updateVolume(homepodId: string, value: number): Promise<void> {
-        this.streamers.forEach(async (streamer) => {
+        await Promise.all(this.streamers.map(async (streamer) => {
             await streamer.volumeUpdated(homepodId, value);
-        });
+        }));
     }
 }

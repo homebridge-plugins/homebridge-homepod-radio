@@ -13,12 +13,19 @@
                 "required": true,
                 "default": "HomePod Mini Radio"
             },
-            "homepodId": {
-                "title": "HomePod Id",
-                "description": "HomePod Id can be MAC address (ex: '00-B0-D0-63-C2-26') or HK name (ex: 'Living Room HomePod')",
+            "defaultHomepodId": {
+                "title": "Default HomePod Id",
+                "description": "Fallback when an entry omits homepodIds; also used for HTTP playback. Legacy homepodId is still accepted. Can be MAC address (ex: '00-B0-D0-63-C2-26') or HK name (ex: 'Living Room HomePod')",
                 "type": "string",
                 "default": "",
-                "required": true
+                "required": false
+            },
+            "homepodId": {
+                "title": "Legacy HomePod Id",
+                "description": "Existing fallback, used until Default HomePod Id is set. Copy this value to Default HomePod Id to migrate.",
+                "type": "string",
+                "required": false,
+                "condition": { "functionBody": "return !!model.homepodId;" }
             },
             "serialNumber": {
                 "title": "Serial Number",
@@ -90,6 +97,15 @@
                             "pattern": "^.+[.](mp3|wav|ogg|flac|m3u|m3u8)$",
                             "required": true
                         },
+                        "homepodIds": {
+                            "title": "HomePod Ids",
+                            "description": "Create an accessory for each listed HomePod. Omit to use the default HomePod Id.",
+                            "type": "array",
+                            "minItems": 1,
+                            "uniqueItems": true,
+                            "items": { "type": "string", "minLength": 1, "pattern": "\\S" },
+                            "required": false
+                        },
                         "volume": {
                             "title": "Audio default volume (0 to ignore volume)",
                             "type": "number",
@@ -141,6 +157,15 @@
                             "title": "Radio Artwork URL",
                             "type": "string",
                             "placeholder": "Enter radio Artwork url...",
+                            "required": false
+                        },
+                        "homepodIds": {
+                            "title": "HomePod Ids",
+                            "description": "Create an accessory for each listed HomePod. Omit to use the default HomePod Id.",
+                            "type": "array",
+                            "minItems": 1,
+                            "uniqueItems": true,
+                            "items": { "type": "string", "minLength": 1, "pattern": "\\S" },
                             "required": false
                         },
                         "volume": {

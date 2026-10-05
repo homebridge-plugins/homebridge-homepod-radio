@@ -74,6 +74,42 @@ Config example:
 }
 ```
 
+### Selecting HomePods per radio or audio file
+
+Set `homepodIds` on each `radios` or `audioFiles` entry to create accessories only
+for those HomePods. Playback coordination is scoped to each HomePod, so starting
+content on one HomePod does not send stop requests to another. For example:
+
+```json
+{
+    "platform": "HomepodRadioPlatform",
+    "defaultHomepodId": "Living Room",
+    "radios": [
+        { "name": "News", "radioUrl": "https://example.com/live" }
+    ],
+    "audioFiles": [
+        { "name": "Podcast", "fileName": "podcast.mp3", "homepodIds": ["Kitchen", "Bedroom"] }
+    ]
+}
+```
+
+Here, News is available on Living Room and Podcast has separate buttons for Kitchen
+and Bedroom. Omitted `homepodIds` uses `defaultHomepodId`, or the legacy `homepodId`
+if the new setting is absent or empty. If both are supplied, `defaultHomepodId` wins.
+An explicit list must be non-empty and contain non-blank strings; duplicate IDs are
+used once. A default is optional when every entry specifies its targets. The settings UI keeps
+an existing legacy HomePod Id visible; copy it to Default HomePod Id to migrate.
+
+Existing default-HomePod accessory names and pairing identities are preserved.
+Other pairings include the HomePod ID in their names and identities. Volume control,
+when enabled, is provided for each configured HomePod. Audio buttons share one warm
+connection per targeted HomePod. The existing warm worker queues file playback;
+this feature does not add cancellation of an in-progress warm file.
+HTTP playback continues to use the default HomePod
+and reports an error if no default is configured. Set `httpPort` to `0` to disable it.
+Changing the default target changes which pairing retains the legacy identity; keep
+the same default ID when migrating an existing configuration.
+
 ### Radio metadata support
 
 Some radios provide metadata about currently played tracks. The plugin supports an optional `metadataUrl` parameter and tries to fetch JSON in the following format (example: https://o.tavrmedia.ua/rokscla):

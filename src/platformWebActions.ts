@@ -140,6 +140,7 @@ export class HomepodRadioPlatformWebActions implements PlaybackStreamer {
             const message = `Started playing file: ${filePath}`;
             this.logger.info(message);
             await this.playbackController.requestStop(this);
+            await this.playbackController.updateVolume(this.config.homepodId, volume);
             await this.device.playFile(filePath, volume);
             return {
                 error: false,
