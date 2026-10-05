@@ -83,7 +83,7 @@ content on one HomePod does not send stop requests to another. For example:
 ```json
 {
     "platform": "HomepodRadioPlatform",
-    "defaultHomepodId": "Living Room",
+    "homepodId": "Living Room",
     "radios": [
         { "name": "News", "radioUrl": "https://example.com/live" }
     ],
@@ -94,11 +94,11 @@ content on one HomePod does not send stop requests to another. For example:
 ```
 
 Here, News is available on Living Room and Podcast has separate buttons for Kitchen
-and Bedroom. Omitted `homepodIds` uses `defaultHomepodId`, or the legacy `homepodId`
-if the new setting is absent or empty. If both are supplied, `defaultHomepodId` wins.
-An explicit list must be non-empty and contain non-blank strings; duplicate IDs are
-used once. A default is optional when every entry specifies its targets. The settings UI keeps
-an existing legacy HomePod Id visible; copy it to Default HomePod Id to migrate.
+and Bedroom. The top-level `homepodId` is the default/fallback HomePod; its existing
+name is retained for backward compatibility. Per-content `homepodIds` override it.
+Omitted `homepodIds` uses `homepodId`. An explicit list must be non-empty and contain
+non-blank strings; duplicate IDs are used once. A default is optional when every
+entry specifies its targets.
 
 Existing default-HomePod accessory names and pairing identities are preserved.
 Other pairings include the HomePod ID in their names and identities. Volume control,
@@ -107,8 +107,8 @@ connection per targeted HomePod. The existing warm worker queues file playback;
 this feature does not add cancellation of an in-progress warm file.
 HTTP playback continues to use the default HomePod
 and reports an error if no default is configured. Set `httpPort` to `0` to disable it.
-Changing the default target changes which pairing retains the legacy identity; keep
-the same default ID when migrating an existing configuration.
+Changing the default target changes which pairing retains the existing identity; keep
+the same default ID when updating an existing configuration.
 
 ### Radio metadata support
 

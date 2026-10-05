@@ -86,7 +86,7 @@ export class HomepodRadioPlatform implements DynamicPlatformPlugin {
             if (this.platformConfig.httpPort > 0) {
                 this.httpService.start(async (action) => this.platformActions
                     ? await this.platformActions.handleAction(action)
-                    : { error: true, message: 'HTTP playback requires defaultHomepodId (or legacy homepodId).' });
+                    : { error: true, message: 'HTTP playback requires homepodId.' });
             }
         });
 

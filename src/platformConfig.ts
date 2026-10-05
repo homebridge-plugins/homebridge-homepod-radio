@@ -41,13 +41,11 @@ export class HomepodRadioPlatformConfig {
 
         this.radios = [];
         this.audioFiles = [];
-        for (const key of ['defaultHomepodId', 'homepodId']) {
-            const value = config[key];
-            if (value !== undefined && (typeof value !== 'string' || (value !== '' && !value.trim()))) {
-                throw new Error(`"${key}" must be a non-blank string or omitted.`);
-            }
+        const value = config.homepodId;
+        if (value !== undefined && (typeof value !== 'string' || (value !== '' && !value.trim()))) {
+            throw new Error('"homepodId" must be a non-blank string or omitted.');
         }
-        this.homepodId = config.defaultHomepodId || config.homepodId || '';
+        this.homepodId = config.homepodId || '';
         this.serialNumber = config.serialNumber || `HPD-${this.homepodId}`;
         this.enableVolumeControl = (config.enableVolumeControl ??= false);
         this.verboseMode = (config.verboseMode ??= false);
@@ -106,7 +104,7 @@ export class HomepodRadioPlatformConfig {
             return [this.homepodId];
         }
         if (!Array.isArray(ids) || ids.length === 0 || ids.some((id) => typeof id !== 'string' || !id.trim())) {
-            throw new Error(`"${name}" requires non-empty homepodIds or a defaultHomepodId (legacy homepodId is also accepted).`);
+            throw new Error(`"${name}" requires non-empty homepodIds or a homepodId fallback.`);
         }
         return [...new Set(ids)];
     }

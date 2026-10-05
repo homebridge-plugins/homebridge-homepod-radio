@@ -16,25 +16,23 @@ const config = (extra) => ({ platform: 'HomepodRadioPlatform', ...extra });
 const radio = { name: 'News', radioUrl: 'https://example.com/live', onSwitch: true };
 const audio = { name: 'Podcast', fileName: 'podcast.mp3' };
 
-test('legacy and new defaults, precedence, explicit targets, and validation', () => {
-    for (const defaults of [{ homepodId: 'A' }, { defaultHomepodId: 'A' }, { defaultHomepodId: '', homepodId: 'A' }]) {
-        const parsed = new HomepodRadioPlatformConfig(config({ ...defaults, radios: [radio], audioFiles: [audio] }));
-        assert.deepEqual(parsed.radios[0].homepodIds, ['A']);
-        assert.deepEqual(parsed.audioFiles[0].homepodIds, ['A']);
-        assert.equal(parsed.serialNumber, 'HPD-A');
-    }
+test('homepodId fallback, explicit targets, and validation', () => {
+    const fallback = new HomepodRadioPlatformConfig(config({ homepodId: 'A', radios: [radio], audioFiles: [audio] }));
+    assert.deepEqual(fallback.radios[0].homepodIds, ['A']);
+    assert.deepEqual(fallback.audioFiles[0].homepodIds, ['A']);
+    assert.equal(fallback.serialNumber, 'HPD-A');
     const parsed = new HomepodRadioPlatformConfig(config({
-        homepodId: 'old', defaultHomepodId: 'A', radios: [radio],
+        homepodId: 'A', radios: [radio],
         audioFiles: [{ ...audio, homepodIds: ['B', 'C', 'B'] }],
     }));
     assert.deepEqual(parsed.radios[0].homepodIds, ['A']);
     assert.deepEqual(parsed.audioFiles[0].homepodIds, ['B', 'C']);
     for (const homepodIds of [[], null, 'A', [' '], [12]]) {
         assert.throws(() => new HomepodRadioPlatformConfig(config({
-            defaultHomepodId: 'A', audioFiles: [{ ...audio, homepodIds }],
+            homepodId: 'A', audioFiles: [{ ...audio, homepodIds }],
         })), /requires non-empty homepodIds/);
     }
-    assert.throws(() => new HomepodRadioPlatformConfig(config({ radios: [radio] })), /defaultHomepodId/);
+    assert.throws(() => new HomepodRadioPlatformConfig(config({ radios: [radio] })), /homepodId/);
     assert.deepEqual(new HomepodRadioPlatformConfig(config({
         radios: [{ ...radio, homepodIds: ['B'] }],
     })).radios[0].homepodIds, ['B']);
@@ -87,7 +85,7 @@ test('only selected pairings are published; playback and warm workers are isolat
     t.mock.method(AirPlayDevice.prototype, 'stop', async function () { stops.push(this.homepodId); });
     t.mock.method(AirPlayDevice.prototype, 'setVolume', async function () { volumes.push(this.homepodId); });
     const { platform, published, shutdown } = await launch(t, {
-        defaultHomepodId: 'A', enableVolumeControl: true,
+        homepodId: 'A', enableVolumeControl: true,
         radios: [radio, { ...radio, name: 'Music', homepodIds: ['B', 'C'] }],
         audioFiles: [{ ...audio, homepodIds: ['A', 'B', 'B'] }, { ...audio, name: 'Alert', homepodIds: ['B'] }],
     });
@@ -132,25 +130,29 @@ test('explicit targets work without a default; HTTP gives a clear error; warm op
     assert.equal(published.length, 3);
     assert.equal(platform.warmPlayers.size, 0);
     assert.deepEqual(await platform.httpService.handler('/play/podcast.mp3'), {
-        error: true, message: 'HTTP playback requires defaultHomepodId (or legacy homepodId).',
+        error: true, message: 'HTTP playback requires homepodId.',
     });
     shutdown();
 });
 
-test('legacy and renamed defaults produce identical accessory identities', async (t) => {
-    const settings = { radios: [radio], audioFiles: [audio], keepConnectionWarm: false };
-    const legacy = await launch(t, { ...settings, homepodId: 'A' });
-    const renamed = await launch(t, { ...settings, defaultHomepodId: 'A' });
-    assert.deepEqual(legacy.published, renamed.published);
-    legacy.shutdown();
-    renamed.shutdown();
+test('implicit and explicit default targets preserve accessory identities', async (t) => {
+    const settings = { homepodId: 'A', keepConnectionWarm: false };
+    const implicit = await launch(t, { ...settings, radios: [radio], audioFiles: [audio] });
+    const explicit = await launch(t, {
+        ...settings,
+        radios: [{ ...radio, homepodIds: ['A'] }],
+        audioFiles: [{ ...audio, homepodIds: ['A'] }],
+    });
+    assert.deepEqual(implicit.published, explicit.published);
+    implicit.shutdown();
+    explicit.shutdown();
 });
 
 
 test('volume notifications reach only the target, preserve zero-as-unchanged, and do not set device volume again', async (t) => {
     const setVolume = t.mock.method(AirPlayDevice.prototype, 'setVolume', async () => {});
     const { platform, shutdown } = await launch(t, {
-        defaultHomepodId: 'A', enableVolumeControl: true, keepConnectionWarm: false,
+        homepodId: 'A', enableVolumeControl: true, keepConnectionWarm: false,
         radios: [{ ...radio, homepodIds: ['A', 'B'] }],
     });
     const a = platform.playbackControllers.get('A');
@@ -205,9 +207,7 @@ test('playback controller waits for asynchronous stop operations', async () => {
 
 test('invalid defaults are rejected and explicit pairing identities survive target reordering', async (t) => {
     for (const value of [12, null, {}, '  ']) {
-        for (const key of ['homepodId', 'defaultHomepodId']) {
-            assert.throws(() => new HomepodRadioPlatformConfig(config({ [key]: value })), /non-blank string/);
-        }
+        assert.throws(() => new HomepodRadioPlatformConfig(config({ homepodId: value })), /non-blank string/);
     }
     const settings = { keepConnectionWarm: false, enableVolumeControl: true };
     const first = await launch(t, { ...settings, radios: [{ ...radio, homepodIds: ['B', 'C'] }] });
