@@ -36,7 +36,7 @@ The main idea is to stream audio to the HomePod or Apple TV using the `pyatv` Ai
 - NodeJS (>=8.9.3) with NPM (>=6.4.1)
 - pyatv (>=0.13) which require python (>= 3.8)
 
-For the HomePod you can specify device MAC address or device name.
+For the HomePod you can specify a device MAC address or a HomeKit device name. Using a HomeKit device name makes the configuration easier to read, but keep in mind that if you ever change the HomeKit device name, this will not propagate backwards to the plugin, so you would need to manually update it here.
 
 ## Usage Example:
 
@@ -51,10 +51,26 @@ Config example:
 {
     "platform": "HomepodRadioPlatform",
     "serialNumber": "20020105:00",
-    "homepodId": "<homepod id or name>",
+    "homepodId": "Living Room Homepod",
     "httpPort": 7654,
     "mediaPath": "/media/homepod",
     "enableVolumeControl": true,
+    "audioFiles": [
+        {
+            "name": "Alert",
+            "fileName": "police.mp3",
+            "volume": 85,
+            "homepodIds": [
+                "Bedroom HomePod",
+                "BB:66:77:88:99:00"
+            ]
+        },
+        {
+            "name": " Podcast",
+            "fileName": "Podcast.mp3",
+            "volume": 40
+        }
+    ],
     "radios": [
         {
             "name": "BBC - Radio 1",
@@ -62,13 +78,9 @@ Config example:
             "artworkUrl": "https://ichef.bbci.co.uk/images/ic/1920x1080/p05d68tx.jpg",
             "autoResume": true,
             "onSwitch": true
-        }
-    ],
-    "audioFiles": [
-        {
-            "name": "Alert",
-            "fileName": "police.mp3",
-            "volume": 85
+            "homepodIds": [
+                "BB:66:77:88:99:00"
+            ]
         }
     ]
 }
@@ -76,39 +88,11 @@ Config example:
 
 ### Selecting HomePods per radio or audio file
 
-Set `homepodIds` on each `radios` or `audioFiles` entry to create accessories only
-for those HomePods. Playback coordination is scoped to each HomePod, so starting
-content on one HomePod does not send stop requests to another. For example:
+The `homepodId` field provides a default HomePod to stream to. However, you can also set `homepodIds` on each `audioFiles` or `radios` entry for finer grain control of where these tracks can be streamed to. These ids will override the default value, but not required. If no `homepodIds` are specified, the `homepodId` field will act as the fallback destination.
 
-```json
-{
-    "platform": "HomepodRadioPlatform",
-    "homepodId": "Living Room",
-    "radios": [
-        { "name": "News", "radioUrl": "https://example.com/live" }
-    ],
-    "audioFiles": [
-        { "name": "Podcast", "fileName": "podcast.mp3", "homepodIds": ["Kitchen", "Bedroom"] }
-    ]
-}
-```
+The top-level `homepodId` is the default/fallback HomePod and per-content `homepodIds` override it. If `homepodIds` is omitted, then `homepodId` will be used. An explicit list of ids must be non-empty, contain non-blank strings, and duplicate IDs are used once. A default is optional when every entry specifies its targets.
 
-Here, News is available on Living Room and Podcast has separate buttons for Kitchen
-and Bedroom. The top-level `homepodId` is the default/fallback HomePod; its existing
-name is retained for backward compatibility. Per-content `homepodIds` override it.
-Omitted `homepodIds` uses `homepodId`. An explicit list must be non-empty and contain
-non-blank strings; duplicate IDs are used once. A default is optional when every
-entry specifies its targets.
-
-Existing default-HomePod accessory names and pairing identities are preserved.
-Other pairings include the HomePod ID in their names and identities. Volume control,
-when enabled, is provided for each configured HomePod. Audio buttons share one warm
-connection per targeted HomePod. The existing warm worker queues file playback;
-this feature does not add cancellation of an in-progress warm file.
-HTTP playback continues to use the default HomePod
-and reports an error if no default is configured. Set `httpPort` to `0` to disable it.
-Changing the default target changes which pairing retains the existing identity; keep
-the same default ID when updating an existing configuration.
+HTTP playback continues to use the default HomePod and reports an error if no default is configured. Set `httpPort` to `0` to disable it.
 
 ### Radio metadata support
 
