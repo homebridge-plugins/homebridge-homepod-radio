@@ -36,7 +36,7 @@ The main idea is to stream audio to the HomePod or Apple TV using the `pyatv` Ai
 - NodeJS (>=8.9.3) with NPM (>=6.4.1)
 - pyatv (>=0.13) which require python (>= 3.8)
 
-For the HomePod you can specify a device MAC address or a HomeKit device name. Using a HomeKit device name makes the configuration easier to read, but keep in mind that if you ever change the HomeKit device name, this will not propagate backwards to the plugin, so you would need to manually update it here.
+For the HomePod you can specify a device MAC address or a HomeKit device name. Using a HomeKit device name makes the configuration easier to read, but keep in mind that if you ever change the HomeKit device name, this will not propagate backwards to the plugin, so you will need to manually update it here.
 
 ## Usage Example:
 
