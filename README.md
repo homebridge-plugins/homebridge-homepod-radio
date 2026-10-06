@@ -88,7 +88,7 @@ Config example:
 
 ### Selecting HomePods per radio or audio file
 
-The `homepodId` field provides a default HomePod to stream to. However, you can also set `homepodIds` on each `audioFiles` or `radios` entry for finer grain control of where these tracks can be streamed to. These ids will override the default value, but not required. If no `homepodIds` are specified, the `homepodId` field will act as the fallback destination.
+The `homepodId` field provides a default HomePod to stream to. However, you can also set `homepodIds` on each `audioFiles` or `radios` entry for finer grain control of where these tracks can be streamed to. These ids will override the default value, but are not required. If no `homepodIds` are specified, the `homepodId` field will act as the fallback destination.
 
 The top-level `homepodId` is the default/fallback HomePod and per-content `homepodIds` override it. If `homepodIds` is omitted, then `homepodId` will be used. An explicit list of ids must be non-empty, contain non-blank strings, and duplicate IDs are used once. A default is optional when every entry specifies its targets.
 
