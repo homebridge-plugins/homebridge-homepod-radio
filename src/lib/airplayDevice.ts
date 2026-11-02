@@ -125,7 +125,7 @@ export class AirPlayDevice {
             this.debug(`[${this.streamerName}] Streaming data: ${data}`);
         });
 
-        this.debug(`[${this.streamerName}] Started hearbeat ${this.heartbeat}`);
+        this.debug(`[${this.streamerName}] Started heartbeat ${this.heartbeat}`);
 
         this.debug(`[${this.streamerName}] Spawn streaming: ${this.streaming.pid}`);
         this.logger.info(`[${this.streamerName}] Started file streaming ${filePath}`);
@@ -169,7 +169,7 @@ export class AirPlayDevice {
             this.logger.info(
                 `[${this.streamerName}] Playback heartbeat ignored (${heatbeatType}) - streaming stopped`,
             );
-            this.logger.info(`[${this.streamerName}] Cleared hearbeat ${this.heartbeat} - streaming stopped`);
+            this.logger.info(`[${this.streamerName}] Cleared heartbeat ${this.heartbeat} - streaming stopped`);
             clearInterval(this.heartbeat);
             this.heartbeat = undefined;
             return;
@@ -243,7 +243,7 @@ export class AirPlayDevice {
         });
 
         if (this.heartbeat !== undefined) {
-            this.debug(`[${this.streamerName}] Cleared hearbeat ${this.heartbeat} - previous timer`);
+            this.debug(`[${this.streamerName}] Cleared heartbeat ${this.heartbeat} - previous timer`);
             clearInterval(this.heartbeat);
             this.heartbeat = undefined;
         }
@@ -252,7 +252,7 @@ export class AirPlayDevice {
             heartbeat('heartbeat', heartbeatFailed);
         }, this.HEARTBEAT_TIMEOUT);
 
-        this.debug(`[${this.streamerName}] Started hearbeat ${this.heartbeat}`);
+        this.debug(`[${this.streamerName}] Started heartbeat ${this.heartbeat}`);
 
         this.debug(`[${this.streamerName}] Spawn streaming: ${this.streaming.pid}`);
         this.logger.info(`[${this.streamerName}] Started streaming ${streamUrl}`);
@@ -268,7 +268,7 @@ export class AirPlayDevice {
             }
             this.debug(`[${this.streamerName}] Killing process: streaming: ${this.streaming.pid}`);
 
-            this.debug(`[${this.streamerName}] Cleared hearbeat ${this.heartbeat} - stop requested`);
+            this.debug(`[${this.streamerName}] Cleared heartbeat ${this.heartbeat} - stop requested`);
             clearInterval(this.heartbeat);
             this.heartbeat = undefined;
 
