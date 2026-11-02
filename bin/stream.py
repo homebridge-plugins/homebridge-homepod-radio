@@ -394,7 +394,9 @@ class AtvStreamer:
             self.logger.error(
                 f"ATV file streaming error: {ex} attempt: {retry_count}")
             if retry_count < 3:
-                await self.internal_stream_file(file_path, retry_count + 1)
+                await self.internal_stream_file(file_path, metadata, retry_count + 1)
+            else:
+                raise ex
 
     async def filter_filenames(self, audio_folder, filenames = []):
         filtered_filenames = [
