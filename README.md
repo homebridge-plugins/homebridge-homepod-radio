@@ -268,7 +268,7 @@ sudo apt-get install python3-pip
 ```
 Install pyatv:
 ```
-pip3 install pyatv
+pip3 install pyatv  "srptools==1.0.1"
 ```
 If the installation fails with this error:
 ```
@@ -278,7 +278,7 @@ error: externally-managed-environment
 ```
 Then install pyatv with the `break-system-packages` option:
 ```
-pip3 install pyatv --break-system-packages
+pip3 install pyatv  "srptools==1.0.1" --break-system-packages
 ```
 Make atvremote available for homebridge:
 ```
@@ -291,7 +291,7 @@ The Homebridge Docker image comes with the latest version of `python` pre-instal
 
 To avoid having to reinstall `pyatv` every time the container is recreated (for example when updating the Homebridge image), Homebridge provides the `startup.sh` script, which is executed after the Docker container is finished starting up. Add the following line to the end of `startup.sh`:
 ```
-pip3 install pyatv --break-system-packages
+pip3 install pyatv  "srptools==1.0.1" --break-system-packages
 ```
 You can do this from the command line (using your favorite editor) and finding the script in the Homebridge `config` folder. Alternatively you can edit it from the Homebridge UI, by going to `Settings`, `Startup & Environment`, `Startup Script`. If you edit the script from the UI or after the container has started, you will need to restart the container.
 
